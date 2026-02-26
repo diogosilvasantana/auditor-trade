@@ -19,6 +19,7 @@ export class PropService {
                 rulesText: dto.rulesText,
                 startDate: dto.startDate ? new Date(dto.startDate) : null,
                 endDate: dto.endDate ? new Date(dto.endDate) : null,
+                accountId: dto.accountId,
             },
         });
     }
@@ -27,6 +28,34 @@ export class PropService {
         return this.prisma.propChallenge.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
+            include: { account: true },
+        });
+    }
+
+    async update(userId: string, id: string, dto: Partial<CreateChallengeDto>) {
+        const challenge = await this.prisma.propChallenge.findFirst({
+            where: { id, userId },
+        });
+        if (!challenge) throw new NotFoundException('Challenge not found');
+
+        return this.prisma.propChallenge.update({
+            where: { id },
+            data: {
+                ...dto,
+                startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+                endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+            },
+        });
+    }
+
+    async delete(userId: string, id: string) {
+        const challenge = await this.prisma.propChallenge.findFirst({
+            where: { id, userId },
+        });
+        if (!challenge) throw new NotFoundException('Challenge not found');
+
+        return this.prisma.propChallenge.delete({
+            where: { id },
         });
     }
 
@@ -72,6 +101,7 @@ export class PropService {
         const trades = await this.prisma.trade.findMany({
             where: {
                 userId,
+                accountId: challenge.accountId || undefined,
                 tradeDate: { gte, lte },
                 symbol: {
                     in: (challenge.allowedSymbols as string[]).map((s) => s as any),

@@ -26,8 +26,35 @@ model User {
   tradePlans     TradePlan[]
   propChallenges PropChallenge[]
   journalEntries JournalEntry[]
+  accounts       Account[]
 
   @@map("users")
+}
+
+enum AccountType {
+  PERSONAL
+  PROP_FIRM
+  SIMULATOR
+}
+
+model Account {
+  id            String      @id @default(uuid())
+  userId        String      @map("user_id")
+  name          String
+  type          AccountType
+  broker        String?
+  accountNumber String?     @map("account_number")
+  isActive      Boolean     @default(true) @map("is_active")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades         Trade[]
+  imports        Import[]
+  dailyStats     DailyStat[]
+  propChallenges PropChallenge[]
+
+  @@map("accounts")
 }
 
 model Import {
@@ -47,6 +74,9 @@ model Import {
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   trades Trade[]
 
+  accountId String?  @map("account_id")
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
   @@map("imports")
 }
 
@@ -58,22 +88,25 @@ enum ImportStatus {
 }
 
 model Trade {
-  id            String    @id @default(uuid())
-  userId        String    @map("user_id")
-  importId      String    @map("import_id")
-  tradeDate     DateTime  @map("trade_date")
-  symbol        Symbol
-  quantity      Decimal
-  pnl           Decimal
-  fees          Decimal?
-  side          TradeSide?
-  entryTime     DateTime? @map("entry_time")
-  exitTime      DateTime? @map("exit_time")
-  externalHash  String    @map("external_hash")
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id           String     @id @default(uuid())
+  userId       String     @map("user_id")
+  importId     String     @map("import_id")
+  tradeDate    DateTime   @map("trade_date")
+  symbol       Symbol
+  quantity     Decimal
+  pnl          Decimal
+  fees         Decimal?
+  side         TradeSide?
+  entryTime    DateTime?  @map("entry_time")
+  exitTime     DateTime?  @map("exit_time")
+  externalHash String     @map("external_hash")
+  createdAt    DateTime   @default(now()) @map("created_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   import Import @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  accountId String?  @map("account_id")
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   @@unique([userId, externalHash])
   @@index([userId, tradeDate])
@@ -106,23 +139,26 @@ model DailyStat {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, date])
+  accountId String?  @map("account_id")
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, accountId, date])
   @@index([userId, date])
   @@map("daily_stats")
 }
 
 model Insight {
-  id          String      @id @default(uuid())
-  userId      String      @map("user_id")
-  type        InsightType
-  title       String
-  description String
-  score       Int
-  sampleSize  Int         @map("sample_size")
-  periodStart DateTime?   @map("period_start")
-  periodEnd   DateTime?   @map("period_end")
-  evidenceJson Json?      @map("evidence_json")
-  createdAt   DateTime    @default(now()) @map("created_at")
+  id           String      @id @default(uuid())
+  userId       String      @map("user_id")
+  type         InsightType
+  title        String
+  description  String
+  score        Int
+  sampleSize   Int         @map("sample_size")
+  periodStart  DateTime?   @map("period_start")
+  periodEnd    DateTime?   @map("period_end")
+  evidenceJson Json?       @map("evidence_json")
+  createdAt    DateTime    @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -155,33 +191,36 @@ model TradePlan {
 }
 
 model PropChallenge {
-  id                   String   @id @default(uuid())
-  userId               String   @map("user_id")
+  id                   String    @id @default(uuid())
+  userId               String    @map("user_id")
   name                 String
-  profitTarget         Decimal  @map("profit_target")
-  dailyMaxLoss         Decimal  @map("daily_max_loss")
-  totalMaxDrawdown     Decimal  @map("total_max_drawdown")
-  allowedSymbols       Json     @map("allowed_symbols")
-  maxContractsBySymbol Json?    @map("max_contracts_by_symbol")
-  rulesText            String?  @map("rules_text")
+  profitTarget         Decimal   @map("profit_target")
+  dailyMaxLoss         Decimal   @map("daily_max_loss")
+  totalMaxDrawdown     Decimal   @map("total_max_drawdown")
+  allowedSymbols       Json      @map("allowed_symbols")
+  maxContractsBySymbol Json?     @map("max_contracts_by_symbol")
+  rulesText            String?   @map("rules_text")
   startDate            DateTime? @map("start_date")
   endDate              DateTime? @map("end_date")
-  createdAt            DateTime @default(now()) @map("created_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accountId String?  @map("account_id")
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   @@map("prop_challenges")
 }
 
 model JournalEntry {
-  id          String        @id @default(uuid())
-  userId      String        @map("user_id")
-  date        DateTime      @db.Date
-  emotion     JournalEmotion
-  followedPlan FollowedPlan @map("followed_plan")
-  triggers    Json?
-  notes       String?
-  createdAt   DateTime      @default(now()) @map("created_at")
+  id           String         @id @default(uuid())
+  userId       String         @map("user_id")
+  date         DateTime       @db.Date
+  emotion      JournalEmotion
+  followedPlan FollowedPlan   @map("followed_plan")
+  triggers     Json?
+  notes        String?
+  createdAt    DateTime       @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

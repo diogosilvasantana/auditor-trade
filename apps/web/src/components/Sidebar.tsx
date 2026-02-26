@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useAccount } from '@/lib/AccountContext';
 import { auth } from '@/lib/api';
 
 const navItems = [
@@ -27,6 +28,7 @@ const navItems = [
 export default function Sidebar() {
     const pathname = usePathname();
     const router = useRouter();
+    const { accounts, selectedAccountId, setSelectedAccountId } = useAccount();
 
     async function handleLogout() {
         await auth.logout();
@@ -38,6 +40,22 @@ export default function Sidebar() {
             <div className="sidebar-logo">
                 <div className="sidebar-logo-text">Trade Auditor</div>
                 <div className="sidebar-logo-subtitle">Pro · V1 MVP</div>
+            </div>
+
+            <div className="account-selector-container">
+                <label className="account-selector-label">Conta Ativa</label>
+                <select
+                    className="account-selector-select"
+                    value={selectedAccountId}
+                    onChange={(e) => setSelectedAccountId(e.target.value)}
+                >
+                    <option value="all">Consolidado (Todas)</option>
+                    {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>
+                            {acc.name} ({acc.type})
+                        </option>
+                    ))}
+                </select>
             </div>
 
             <nav className="sidebar-nav">

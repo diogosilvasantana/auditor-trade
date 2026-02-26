@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, FormEvent } from 'react';
-import { prop } from '@/lib/api';
+import { prop, accounts as accountsApi } from '@/lib/api';
+import { useAccount } from '@/lib/AccountContext';
 
 interface PropChallenge {
     id: string;
@@ -10,6 +11,7 @@ interface PropChallenge {
     dailyMaxLoss: number;
     totalMaxDrawdown: number;
     allowedSymbols: string[];
+    accountId?: string;
     createdAt: string;
 }
 
@@ -25,6 +27,7 @@ interface Progress {
 }
 
 export default function PropPage() {
+    const { accounts } = useAccount();
     const [challenges, setChallenges] = useState<PropChallenge[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
     const [plan, setPlan] = useState<any>(null);
@@ -40,20 +43,25 @@ export default function PropPage() {
     const [totalMaxDrawdown, setTotalMaxDrawdown] = useState('');
     const [symbols, setSymbols] = useState(['WIN', 'WDO']);
     const [rulesText, setRulesText] = useState('');
+    const [accountId, setAccountId] = useState('');
 
     useEffect(() => {
+        refresh();
+    }, []);
+
+    const refresh = () => {
         prop.list().then((data: any) => {
             setChallenges(data);
-            if (data.length > 0) setSelected(data[0].id);
+            if (data.length > 0 && !selected) setSelected(data[0].id);
             setLoading(false);
         });
-    }, []);
+    };
 
     useEffect(() => {
         if (!selected) return;
         Promise.all([
             prop.getPlan(selected),
-            prop.getProgress(selected, '2024-01-01', '2025-12-31'),
+            prop.getProgress(selected, '2020-01-01', '2030-12-31'),
         ]).then(([p, prog]: any) => {
             setPlan(p);
             setProgress(prog.progress);
@@ -64,23 +72,34 @@ export default function PropPage() {
         e.preventDefault();
         setSaving(true);
         try {
-            const newChallenge: any = await prop.create({
+            await prop.create({
                 name,
                 profitTarget: Number(profitTarget),
                 dailyMaxLoss: Number(dailyMaxLoss),
                 totalMaxDrawdown: Number(totalMaxDrawdown),
                 allowedSymbols: symbols,
                 rulesText,
+                accountId: accountId || undefined,
             });
-            const updated: any = await prop.list();
-            setChallenges(updated);
-            setSelected(newChallenge.id);
+            refresh();
             setShowForm(false);
+            setName('');
+            setProfitTarget('');
+            setDailyMaxLoss('');
+            setTotalMaxDrawdown('');
+            setAccountId('');
         } catch (err) {
             console.error(err);
         } finally {
             setSaving(false);
         }
+    }
+
+    async function handleDelete(id: string) {
+        if (!confirm('Excluir este desafio? As operações vinculadas à conta NÃO serão apagadas.')) return;
+        await prop.delete(id);
+        refresh();
+        if (selected === id) setSelected(null);
     }
 
     const progressPct = parseFloat(progress?.progressPercent || '0');
@@ -121,6 +140,18 @@ export default function PropPage() {
                             </div>
                         </div>
                         <div className="form-group">
+                            <label className="input-label">Vincular à Conta (Opcional)</label>
+                            <select className="input" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+                                <option value="">Nenhuma (Global)</option>
+                                {accounts.map(acc => (
+                                    <option key={acc.id} value={acc.id}>{acc.name} ({acc.type})</option>
+                                ))}
+                            </select>
+                            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                                Se vinculado, o progresso será calculado apenas com trades desta conta.
+                            </p>
+                        </div>
+                        <div className="form-group">
                             <label className="input-label">Ativos permitidos</label>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 {['WIN', 'WDO', 'BTC'].map((s) => (
@@ -159,32 +190,47 @@ export default function PropPage() {
                     <p style={{ fontSize: 13, marginTop: 8 }}>Clique em "Novo challenge" para começar.</p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: 'var(--gap-lg)' }}>
-                    {/* Challenge List */}
-                    <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>Challenges</div>
-                        {challenges.map((c) => (
-                            <button
-                                key={c.id}
-                                onClick={() => setSelected(c.id)}
-                                style={{
-                                    display: 'block',
-                                    width: '100%',
-                                    textAlign: 'left',
-                                    padding: '10px 14px',
-                                    marginBottom: 4,
-                                    background: selected === c.id ? 'var(--bg-elevated)' : 'var(--bg-surface)',
-                                    border: `1px solid ${selected === c.id ? 'var(--border-strong)' : 'var(--border-default)'}`,
-                                    borderRadius: 'var(--radius-md)',
-                                    color: selected === c.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    fontSize: 13,
-                                    fontWeight: selected === c.id ? 600 : 400,
-                                }}
-                            >
-                                {c.name}
-                            </button>
-                        ))}
+                <div className="prop-layout" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 'var(--gap-lg)' }}>
+                    {/* Challenge List Sidebar */}
+                    <div className="prop-sidebar">
+                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>Ativos</div>
+                        <div className="prop-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {challenges.map(c => (
+                                <div
+                                    key={c.id}
+                                    className={`prop-card ${selected === c.id ? 'active' : ''}`}
+                                    onClick={() => setSelected(c.id)}
+                                    style={{
+                                        padding: '16px',
+                                        borderRadius: 'var(--radius-md)',
+                                        background: selected === c.id ? 'var(--bg-elevated)' : 'var(--bg-card)',
+                                        border: `1px solid ${selected === c.id ? 'var(--border-strong)' : 'var(--border-default)'}`,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        position: 'relative'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: selected === c.id ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{c.name}</h3>
+                                            <p style={{ margin: '4px 0 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
+                                                {c.accountId ? 'Conta Vinculada' : 'Global (Todos os trades)'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            className="btn-icon delete"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDelete(c.id);
+                                            }}
+                                            title="Excluir desafio"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Challenge Detail */}

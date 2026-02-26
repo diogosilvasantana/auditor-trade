@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 interface DateRangeQuery {
     start?: string;
     end?: string;
+    accountId?: string;
 }
 
 @Injectable()
@@ -23,6 +24,7 @@ export class AnalyticsService {
         const stats = await this.prisma.dailyStat.findMany({
             where: {
                 userId,
+                accountId: q.accountId || undefined,
                 date: { gte: range.gte, lte: range.lte },
             },
             orderBy: { date: 'asc' },
@@ -64,6 +66,7 @@ export class AnalyticsService {
         const trades = await this.prisma.trade.findMany({
             where: {
                 userId,
+                accountId: q.accountId || undefined,
                 tradeDate: { gte: range.gte, lte: range.lte },
             },
             select: { symbol: true, pnl: true, tradeDate: true },
@@ -117,6 +120,7 @@ export class AnalyticsService {
 
         const where: any = {
             userId,
+            accountId: q.accountId || undefined,
             tradeDate: { gte: range.gte, lte: range.lte },
         };
         if (q.symbol) where.symbol = q.symbol;
@@ -164,6 +168,7 @@ export class AnalyticsService {
         const trades = await this.prisma.trade.findMany({
             where: {
                 userId,
+                accountId: q.accountId || undefined,
                 tradeDate: { gte: range.gte, lte: range.lte },
             },
             select: { tradeDate: true, pnl: true },
@@ -196,6 +201,7 @@ export class AnalyticsService {
         const trades = await this.prisma.trade.findMany({
             where: {
                 userId,
+                accountId: q.accountId || undefined,
                 tradeDate: { gte: range.gte, lte: range.lte },
             },
             orderBy: { tradeDate: 'desc' },

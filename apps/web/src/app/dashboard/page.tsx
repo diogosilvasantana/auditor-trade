@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { analytics, insights } from '@/lib/api';
 import { format } from 'date-fns';
+import { useAccount } from '@/lib/AccountContext';
 
 interface DailyStat {
     date: string;
@@ -114,148 +115,146 @@ function PnlTooltip({ active, payload, label }: any) {
     );
 }
 
-export default function DashboardPage() {
-    const [overview, setOverview] = useState<Overview | null>(null);
-    const [insightData, setInsightData] = useState<Insight[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [insightsMsg, setInsightsMsg] = useState('');
+const { selectedAccountId } = useAccount();
 
-    useEffect(() => {
-        const start = '2020-01-01';
-        const end = '2030-12-31';
+useEffect(() => {
+    setLoading(true);
+    const start = '2020-01-01';
+    const end = '2030-12-31';
+    const aid = selectedAccountId === 'all' ? undefined : selectedAccountId;
 
-        Promise.all([
-            analytics.overview(start, end) as Promise<Overview>,
-            insights.get(start, end) as Promise<{ insights: Insight[]; message?: string }>,
-        ]).then(([ov, ins]) => {
-            setOverview(ov);
-            setInsightData(ins.insights || []);
-            if (ins.message) setInsightsMsg(ins.message);
-            setLoading(false);
-        }).catch(() => setLoading(false));
-    }, []);
+    Promise.all([
+        analytics.overview(start, end, aid) as Promise<Overview>,
+        insights.get(start, end, aid) as Promise<{ insights: Insight[]; message?: string }>,
+    ]).then(([ov, ins]) => {
+        setOverview(ov);
+        setInsightData(ins.insights || []);
+        setInsightsMsg(ins.message || '');
+        setLoading(false);
+    }).catch(() => setLoading(false));
+}, [selectedAccountId]);
 
-    const totalPnlNum = parseFloat(overview?.summary.totalPnl || '0');
-    const isPositive = totalPnlNum >= 0;
+const totalPnlNum = parseFloat(overview?.summary.totalPnl || '0');
+const isPositive = totalPnlNum >= 0;
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-between loading" style={{ minHeight: '50vh', justifyContent: 'center' }}>
-                <div className="spinner" style={{ width: 32, height: 32 }} />
-            </div>
-        );
-    }
-
-    const noData = !overview?.daily?.length;
-
+if (loading) {
     return (
-        <div>
-            <div className="page-header">
-                <h1 className="page-title">Dashboard</h1>
-                <p className="page-subtitle">
-                    {noData
-                        ? 'Importe seu histórico para ver a auditoria'
-                        : `${overview?.summary.tradingDays} dias operados · ${overview?.summary.totalTrades} operações`}
-                </p>
-            </div>
-
-            {noData ? (
-                <div className="empty-state card" style={{ maxWidth: 480 }}>
-                    <div className="empty-state-icon">📂</div>
-                    <h3 style={{ color: 'var(--text-primary)', marginBottom: 8 }}>Nenhum dado importado</h3>
-                    <p style={{ color: 'var(--text-muted)', marginBottom: 20 }}>
-                        Faça o upload do relatório do Profit para começar a auditoria.
-                    </p>
-                    <Link href="/imports" className="btn btn-primary">
-                        ↑ Importar histórico
-                    </Link>
-                </div>
-            ) : (
-                <>
-                    {/* Summary Stats */}
-                    <div className="grid-4 mb-xl">
-                        <div className="card">
-                            <div className="card-title">P&L Total</div>
-                            <div className={`card-value ${isPositive ? 'text-green' : 'text-red'}`} style={{ fontFamily: 'var(--font-mono)' }}>
-                                {isPositive ? '+' : ''}R$ {totalPnlNum.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
-                            </div>
-                            <div className="card-subtitle">no período</div>
-                        </div>
-
-                        <div className="card">
-                            <div className="card-title">Win Rate</div>
-                            <div className="card-value mono text-amber">{overview?.summary.winRate}</div>
-                            <div className="card-subtitle">{overview?.summary.totalTrades} operações</div>
-                        </div>
-
-                        <div className="card">
-                            <div className="card-title">Dias Operados</div>
-                            <div className="card-value mono" style={{ color: 'var(--text-primary)' }}>
-                                {overview?.summary.tradingDays}
-                            </div>
-                            <div className="card-subtitle">dias com trades</div>
-                        </div>
-
-                        <div className="card">
-                            <div className="card-title">Ops / Dia</div>
-                            <div className="card-value mono" style={{ color: 'var(--text-primary)' }}>
-                                {overview?.summary.tradingDays
-                                    ? (overview.summary.totalTrades / overview.summary.tradingDays).toFixed(1)
-                                    : '—'}
-                            </div>
-                            <div className="card-subtitle">média diária</div>
-                        </div>
-                    </div>
-
-                    {/* P&L Chart */}
-                    <div className="card mb-xl">
-                        <div className="card-header">
-                            <div className="card-title">P&L por Dia</div>
-                            <Link href="/analytics" className="btn btn-ghost btn-sm">Ver auditoria completa →</Link>
-                        </div>
-                        <div style={{ height: 220 }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={overview?.daily || []} margin={{ left: 0, right: 0, top: 4, bottom: 4 }}>
-                                    <XAxis
-                                        dataKey="date"
-                                        tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-mono)' }}
-                                        tickFormatter={(v) => v.slice(5)}
-                                        axisLine={false}
-                                        tickLine={false}
-                                    />
-                                    <YAxis hide />
-                                    <Tooltip content={<PnlTooltip />} />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="pnl"
-                                        stroke="var(--green-bright)"
-                                        strokeWidth={2}
-                                        dot={false}
-                                        activeDot={{ r: 4, fill: 'var(--green-bright)', stroke: 'var(--bg-base)' }}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    {/* Insights */}
-                    <div className="page-header" style={{ marginBottom: 'var(--gap-md)' }}>
-                        <h2 style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                            ✦ Insights
-                        </h2>
-                    </div>
-
-                    {insightsMsg ? (
-                        <div className="card" style={{ color: 'var(--text-muted)' }}>{insightsMsg}</div>
-                    ) : (
-                        <div className="grid-3">
-                            {insightData.map((ins, i) => (
-                                <InsightCard key={i} insight={ins} />
-                            ))}
-                        </div>
-                    )}
-                </>
-            )}
+        <div className="flex items-center justify-between loading" style={{ minHeight: '50vh', justifyContent: 'center' }}>
+            <div className="spinner" style={{ width: 32, height: 32 }} />
         </div>
     );
+}
+
+const noData = !overview?.daily?.length;
+
+return (
+    <div>
+        <div className="page-header">
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">
+                {noData
+                    ? 'Importe seu histórico para ver a auditoria'
+                    : `${overview?.summary.tradingDays} dias operados · ${overview?.summary.totalTrades} operações`}
+            </p>
+        </div>
+
+        {noData ? (
+            <div className="empty-state card" style={{ maxWidth: 480 }}>
+                <div className="empty-state-icon">📂</div>
+                <h3 style={{ color: 'var(--text-primary)', marginBottom: 8 }}>Nenhum dado importado</h3>
+                <p style={{ color: 'var(--text-muted)', marginBottom: 20 }}>
+                    Faça o upload do relatório do Profit para começar a auditoria.
+                </p>
+                <Link href="/imports" className="btn btn-primary">
+                    ↑ Importar histórico
+                </Link>
+            </div>
+        ) : (
+            <>
+                {/* Summary Stats */}
+                <div className="grid-4 mb-xl">
+                    <div className="card">
+                        <div className="card-title">P&L Total</div>
+                        <div className={`card-value ${isPositive ? 'text-green' : 'text-red'}`} style={{ fontFamily: 'var(--font-mono)' }}>
+                            {isPositive ? '+' : ''}R$ {totalPnlNum.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                        </div>
+                        <div className="card-subtitle">no período</div>
+                    </div>
+
+                    <div className="card">
+                        <div className="card-title">Win Rate</div>
+                        <div className="card-value mono text-amber">{overview?.summary.winRate}</div>
+                        <div className="card-subtitle">{overview?.summary.totalTrades} operações</div>
+                    </div>
+
+                    <div className="card">
+                        <div className="card-title">Dias Operados</div>
+                        <div className="card-value mono" style={{ color: 'var(--text-primary)' }}>
+                            {overview?.summary.tradingDays}
+                        </div>
+                        <div className="card-subtitle">dias com trades</div>
+                    </div>
+
+                    <div className="card">
+                        <div className="card-title">Ops / Dia</div>
+                        <div className="card-value mono" style={{ color: 'var(--text-primary)' }}>
+                            {overview?.summary.tradingDays
+                                ? (overview.summary.totalTrades / overview.summary.tradingDays).toFixed(1)
+                                : '—'}
+                        </div>
+                        <div className="card-subtitle">média diária</div>
+                    </div>
+                </div>
+
+                {/* P&L Chart */}
+                <div className="card mb-xl">
+                    <div className="card-header">
+                        <div className="card-title">P&L por Dia</div>
+                        <Link href="/analytics" className="btn btn-ghost btn-sm">Ver auditoria completa →</Link>
+                    </div>
+                    <div style={{ height: 220 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={overview?.daily || []} margin={{ left: 0, right: 0, top: 4, bottom: 4 }}>
+                                <XAxis
+                                    dataKey="date"
+                                    tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-mono)' }}
+                                    tickFormatter={(v) => v.slice(5)}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <YAxis hide />
+                                <Tooltip content={<PnlTooltip />} />
+                                <Line
+                                    type="monotone"
+                                    dataKey="pnl"
+                                    stroke="var(--green-bright)"
+                                    strokeWidth={2}
+                                    dot={false}
+                                    activeDot={{ r: 4, fill: 'var(--green-bright)', stroke: 'var(--bg-base)' }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Insights */}
+                <div className="page-header" style={{ marginBottom: 'var(--gap-md)' }}>
+                    <h2 style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                        ✦ Insights
+                    </h2>
+                </div>
+
+                {insightsMsg ? (
+                    <div className="card" style={{ color: 'var(--text-muted)' }}>{insightsMsg}</div>
+                ) : (
+                    <div className="grid-3">
+                        {insightData.map((ins, i) => (
+                            <InsightCard key={i} insight={ins} />
+                        ))}
+                    </div>
+                )}
+            </>
+        )}
+    </div>
+);
 }

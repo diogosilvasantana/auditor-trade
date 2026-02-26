@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { $Enums } from '@prisma/client';
+import { AccountsService } from '../accounts/accounts.service';
 
 type TradeSymbol = $Enums.Symbol;
 
@@ -22,7 +23,10 @@ interface RawTrade {
 
 @Injectable()
 export class ImportsService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private accountsService: AccountsService,
+    ) { }
 
     async createImport(userId: string, file: Express.Multer.File) {
         const imp = await this.prisma.import.create({
@@ -55,14 +59,29 @@ export class ImportsService {
         });
 
         let rawTrades: RawTrade[] = [];
+        let detectedAccountNumber: string | null = null;
 
         const ext = file.originalname.toLowerCase();
         if (ext.endsWith('.csv')) {
-            rawTrades = this.parseCsv(file.buffer);
+            const parsed = this.parseCsv(file.buffer);
+            rawTrades = parsed.trades;
+            detectedAccountNumber = parsed.accountNumber;
         } else if (ext.endsWith('.xlsx') || ext.endsWith('.xls')) {
             rawTrades = this.parseXlsx(file.buffer);
         } else {
             throw new BadRequestException('Unsupported file format. Use CSV or XLSX.');
+        }
+
+        let accountId: string | null = null;
+        if (detectedAccountNumber) {
+            const account = await this.accountsService.findOrCreateByAccountNumber(userId, detectedAccountNumber);
+            accountId = account.id;
+
+            // Link account to the import
+            await this.prisma.import.update({
+                where: { id: importId },
+                data: { accountId },
+            });
         }
 
         let imported = 0;
@@ -84,6 +103,7 @@ export class ImportsService {
                 data: {
                     userId,
                     importId,
+                    accountId,
                     tradeDate: raw.tradeDate,
                     symbol: raw.symbol,
                     quantity: raw.quantity,
@@ -111,9 +131,11 @@ export class ImportsService {
         });
     }
 
-    private parseCsv(buffer: Buffer): RawTrade[] {
+    private parseCsv(buffer: Buffer): { trades: RawTrade[], accountNumber: string | null } {
         // Profit Chart exports are ISO-8859-1 (Latin1) encoded, not UTF-8
         let content = buffer.toString('latin1');
+
+        let accountNumber: string | null = null;
 
         // Fix garbled Brazilian chars directly in the raw string before parsing
         content = content.replace(/Operao/gi, 'Operacao').replace(/Preo/gi, 'Preco');
@@ -121,6 +143,11 @@ export class ImportsService {
         // Profit Chart exports contain 5 lines of metadata before the actual CSV headers start
         if (content.startsWith('Conta:') || content.startsWith('Titular:')) {
             const lines = content.split('\n');
+            const accountLine = lines.find(l => l.startsWith('Conta:'));
+            if (accountLine) {
+                accountNumber = accountLine.replace('Conta:', '').trim();
+            }
+
             const headerIndex = lines.findIndex(line => line.includes('Subconta;') || line.includes('Subconta,'));
             if (headerIndex !== -1) {
                 // Slice everything before the actual table header
@@ -139,7 +166,8 @@ export class ImportsService {
             delimiter: detectedDelimiter,
         });
 
-        return records.map((r: Record<string, string>) => this.normalizeRow(r));
+        const trades = records.map((r: Record<string, string>) => this.normalizeRow(r));
+        return { trades, accountNumber };
     }
 
     private parseXlsx(buffer: Buffer): RawTrade[] {
@@ -211,17 +239,23 @@ export class ImportsService {
     private async rebuildDailyStats(userId: string) {
         const trades = await this.prisma.trade.findMany({
             where: { userId },
-            select: { tradeDate: true, pnl: true },
+            select: { tradeDate: true, pnl: true, accountId: true },
         });
 
         const byDate = new Map<
             string,
-            { totalPnl: number; totalTrades: number; wins: number; losses: number }
+            { userId: string; accountId: string | null; date: Date; totalPnl: number; totalTrades: number; wins: number; losses: number }
         >();
 
         for (const t of trades) {
-            const key = t.tradeDate.toISOString().split('T')[0];
+            const dateKey = t.tradeDate.toISOString().split('T')[0];
+            const accountId = t.accountId || 'unassigned';
+            const key = `${dateKey}_${accountId}`;
+
             const existing = byDate.get(key) || {
+                userId,
+                accountId: t.accountId,
+                date: new Date(dateKey),
                 totalPnl: 0,
                 totalTrades: 0,
                 wins: 0,
@@ -229,6 +263,7 @@ export class ImportsService {
             };
             const pnl = Number(t.pnl);
             byDate.set(key, {
+                ...existing,
                 totalPnl: existing.totalPnl + pnl,
                 totalTrades: existing.totalTrades + 1,
                 wins: existing.wins + (pnl > 0 ? 1 : 0),
@@ -236,11 +271,12 @@ export class ImportsService {
             });
         }
 
-        for (const [dateStr, stats] of byDate) {
-            await this.prisma.dailyStat.upsert({
-                where: { userId_date: { userId, date: new Date(dateStr) } },
-                update: stats,
-                create: { userId, date: new Date(dateStr), ...stats },
+        // Drop all existing stats for this user to avoid unique constraint issues after schema change
+        await this.prisma.dailyStat.deleteMany({ where: { userId } });
+
+        for (const stats of byDate.values()) {
+            await this.prisma.dailyStat.create({
+                data: stats,
             });
         }
     }

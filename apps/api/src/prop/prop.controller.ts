@@ -5,6 +5,8 @@ import {
     Param,
     Body,
     Query,
+    Put,
+    Delete,
     UseGuards,
     Request,
 } from '@nestjs/common';
@@ -39,5 +41,19 @@ export class PropController {
         @Query() q: any,
     ) {
         return this.prop.getProgress(req.user.id, id, q);
+    }
+
+    @Put(':id')
+    update(
+        @Param('id') id: string,
+        @Request() req: any,
+        @Body() dto: Partial<CreateChallengeDto>,
+    ) {
+        return this.prop.update(req.user.id, id, dto);
+    }
+
+    @Delete(':id')
+    delete(@Param('id') id: string, @Request() req: any) {
+        return this.prop.delete(req.user.id, id);
     }
 }

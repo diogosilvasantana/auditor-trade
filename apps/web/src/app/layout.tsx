@@ -6,6 +6,8 @@ export const metadata: Metadata = {
     description: 'Auditoria e planejamento disciplinado de day trade.',
 };
 
+import { AccountProvider } from '@/lib/AccountContext';
+
 export default function RootLayout({
     children,
 }: {
@@ -17,7 +19,11 @@ export default function RootLayout({
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
             </head>
-            <body>{children}</body>
+            <body>
+                <AccountProvider>
+                    {children}
+                </AccountProvider>
+            </body>
         </html>
     );
 }

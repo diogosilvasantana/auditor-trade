@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 interface DateRangeQuery {
     start?: string;
     end?: string;
+    accountId?: string;
 }
 
 @Injectable()
@@ -20,7 +21,11 @@ export class InsightsService {
     async getInsights(userId: string, q: DateRangeQuery) {
         const range = this.dateRange(q);
         const rawTrades = await this.prisma.trade.findMany({
-            where: { userId, tradeDate: { gte: range.gte, lte: range.lte } },
+            where: {
+                userId,
+                accountId: q.accountId || undefined,
+                tradeDate: { gte: range.gte, lte: range.lte },
+            },
             select: { tradeDate: true, symbol: true, pnl: true },
         });
 

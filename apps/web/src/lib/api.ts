@@ -41,6 +41,14 @@ export const auth = {
     me: () => request('/auth/me'),
 };
 
+// Accounts
+export const accounts = {
+    list: () => request<any[]>('/accounts'),
+    create: (data: any) => request('/accounts', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request(`/accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/accounts/${id}`, { method: 'DELETE' }),
+};
+
 // Imports
 export const imports = {
     upload: (file: File) => {
@@ -60,50 +68,56 @@ export const imports = {
 
 // Analytics
 export const analytics = {
-    overview: (start?: string, end?: string) => {
+    overview: (start?: string, end?: string, accountId?: string) => {
         const p = new URLSearchParams();
         if (start) p.set('start', start);
         if (end) p.set('end', end);
+        if (accountId) p.set('accountId', accountId);
         return request(`/analytics/overview?${p}`);
     },
 
-    bySymbol: (start?: string, end?: string) => {
+    bySymbol: (start?: string, end?: string, accountId?: string) => {
         const p = new URLSearchParams();
         if (start) p.set('start', start);
         if (end) p.set('end', end);
+        if (accountId) p.set('accountId', accountId);
         return request(`/analytics/by-symbol?${p}`);
     },
 
-    heatmap: (opts?: { start?: string; end?: string; symbol?: string; bucket?: number }) => {
+    heatmap: (opts?: { start?: string; end?: string; symbol?: string; bucket?: number; accountId?: string }) => {
         const p = new URLSearchParams();
         if (opts?.start) p.set('start', opts.start);
         if (opts?.end) p.set('end', opts.end);
         if (opts?.symbol) p.set('symbol', opts.symbol);
         if (opts?.bucket) p.set('bucket', String(opts.bucket));
+        if (opts?.accountId) p.set('accountId', opts.accountId);
         return request(`/analytics/heatmap?${p}`);
     },
 
-    byWeekday: (start?: string, end?: string) => {
+    byWeekday: (start?: string, end?: string, accountId?: string) => {
         const p = new URLSearchParams();
         if (start) p.set('start', start);
         if (end) p.set('end', end);
+        if (accountId) p.set('accountId', accountId);
         return request(`/analytics/by-weekday?${p}`);
     },
 
-    trades: (start?: string, end?: string) => {
+    trades: (start?: string, end?: string, accountId?: string) => {
         const p = new URLSearchParams();
         if (start) p.set('start', start);
         if (end) p.set('end', end);
+        if (accountId) p.set('accountId', accountId);
         return request(`/analytics/trades?${p}`);
     },
 };
 
 // Insights
 export const insights = {
-    get: (start?: string, end?: string) => {
+    get: (start?: string, end?: string, accountId?: string) => {
         const p = new URLSearchParams();
         if (start) p.set('start', start);
         if (end) p.set('end', end);
+        if (accountId) p.set('accountId', accountId);
         return request(`/insights?${p}`);
     },
 };
@@ -125,9 +139,12 @@ export const plans = {
 
 // Prop Challenges
 export const prop = {
-    list: () => request('/prop-challenges'),
+    list: () => request<any[]>('/prop-challenges'),
     create: (data: unknown) =>
         request('/prop-challenges', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: unknown) =>
+        request(`/prop-challenges/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: string) => request(`/prop-challenges/${id}`, { method: 'DELETE' }),
     getPlan: (id: string) => request(`/prop-challenges/${id}/plan`),
     getProgress: (id: string, start?: string, end?: string) => {
         const p = new URLSearchParams();
@@ -139,10 +156,11 @@ export const prop = {
 
 // Journal
 export const journal = {
-    list: (start?: string, end?: string) => {
+    list: (start?: string, end?: string, accountId?: string) => {
         const p = new URLSearchParams();
         if (start) p.set('start', start);
         if (end) p.set('end', end);
+        if (accountId) p.set('accountId', accountId);
         return request(`/journal?${p}`);
     },
     getByDate: (date: string) => request(`/journal/${date}`),

@@ -30,4 +30,8 @@ export class CreateChallengeDto {
     @IsOptional()
     @IsString()
     endDate?: string;
+
+    @IsOptional()
+    @IsString()
+    accountId?: string;
 }
