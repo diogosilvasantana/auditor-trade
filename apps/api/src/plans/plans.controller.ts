@@ -19,8 +19,8 @@ export class PlansController {
     constructor(private plans: PlansService) { }
 
     @Get('active')
-    getActive(@Request() req: any) {
-        return this.plans.getActive(req.user.id);
+    getActive(@Request() req: any, @Query('accountId') accountId?: string) {
+        return this.plans.getActive(req.user.id, accountId);
     }
 
     @Post()

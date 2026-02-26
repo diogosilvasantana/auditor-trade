@@ -2,6 +2,7 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import { plans } from '@/lib/api';
+import { useAccount } from '@/lib/AccountContext';
 
 interface TradePlan {
     id: string;
@@ -36,10 +37,15 @@ export default function PlannerPage() {
     const [pauseAfter, setPauseAfter] = useState('2');
     const [pauseMins, setPauseMins] = useState('15');
 
+    const { selectedAccountId } = useAccount();
+
     useEffect(() => {
+        setLoading(true);
+        const aid = selectedAccountId === 'all' ? undefined : selectedAccountId;
+
         Promise.all([
-            plans.getActive() as Promise<TradePlan | null>,
-            plans.violations('2024-01-01', '2025-12-31') as Promise<{ violations: Violation[] }>,
+            plans.getActive(aid) as Promise<TradePlan | null>,
+            plans.violations('2024-01-01', '2030-12-31', aid) as Promise<{ violations: Violation[] }>,
         ]).then(([plan, v]) => {
             setActivePlan(plan);
             setViolations(v.violations || []);
@@ -49,10 +55,18 @@ export default function PlannerPage() {
                 setMaxTrades(String(plan.maxTradesPerDay));
                 setPauseAfter(String(plan.pauseAfterConsecutiveLosses));
                 setPauseMins(String(plan.pauseMinutes));
+            } else {
+                setName('Meu Plano de Trade');
+                setDailyLoss('500');
+                setMaxTrades('5');
+                setPauseAfter('2');
+                setPauseMins('15');
             }
             setLoading(false);
-        });
-    }, []);
+        }).catch(() => setLoading(false));
+    }, [selectedAccountId]);
+
+    const isConsolidated = selectedAccountId === 'all';
 
     async function handleSave(e: FormEvent) {
         e.preventDefault();
@@ -65,13 +79,14 @@ export default function PlannerPage() {
                 maxTradesPerDay: Number(maxTrades),
                 pauseAfterConsecutiveLosses: Number(pauseAfter),
                 pauseMinutes: Number(pauseMins),
+                accountId: selectedAccountId === 'all' ? undefined : selectedAccountId,
             };
             if (activePlan) {
                 await plans.update(activePlan.id, data);
             } else {
                 await plans.create(data);
             }
-            const updated = await plans.getActive() as TradePlan;
+            const updated = await plans.getActive(selectedAccountId === 'all' ? undefined : selectedAccountId) as TradePlan;
             setActivePlan(updated);
             setCreating(false);
             setMsg('✓ Plano salvo com sucesso!');
@@ -91,12 +106,31 @@ export default function PlannerPage() {
                     <h1 className="page-title">Plano de Trade</h1>
                     <p className="page-subtitle">Defina suas regras de risco e disciplina</p>
                 </div>
-                {activePlan && (
-                    <button className="btn btn-secondary" onClick={() => setCreating((c) => !c)}>
-                        {creating ? 'Cancelar' : '✎ Editar plano'}
+                {activePlan && !creating && !isConsolidated && (
+                    <button className="btn btn-secondary" onClick={() => setCreating(true)}>
+                        ✎ Editar plano
+                    </button>
+                )}
+                {creating && (
+                    <button className="btn btn-secondary" onClick={() => setCreating(false)}>
+                        Cancelar
                     </button>
                 )}
             </div>
+
+            {isConsolidated && (
+                <div className="card mb-xl" style={{ borderLeft: '4px solid var(--amber-bright)', background: 'rgba(255, 191, 0, 0.05)' }}>
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '24px' }}>ℹ</span>
+                        <div>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Visualização Consolidada</div>
+                            <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                                Selecione uma conta específica no menu lateral para visualizar ou editar as suas regras de risco.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Current Plan Summary */}
             {activePlan && !creating && (
@@ -138,6 +172,11 @@ export default function PlannerPage() {
                     )}
 
                     <form onSubmit={handleSave}>
+                        {isConsolidated && (
+                            <div style={{ marginBottom: 16, padding: '12px', background: 'var(--bg-void)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', color: 'var(--amber-bright)', fontSize: 13 }}>
+                                ⚠ Selecione uma conta no menu lateral para salvar um plano.
+                            </div>
+                        )}
                         <div className="form-group">
                             <label className="input-label">Nome do plano</label>
                             <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -160,7 +199,7 @@ export default function PlannerPage() {
                                 <input className="input" type="number" min="1" value={pauseMins} onChange={(e) => setPauseMins(e.target.value)} />
                             </div>
                         </div>
-                        <button type="submit" className="btn btn-primary" disabled={saving}>
+                        <button type="submit" className="btn btn-primary" disabled={saving || isConsolidated}>
                             {saving ? <><span className="spinner" /> Salvando...</> : '✓ Salvar plano'}
                         </button>
                     </form>

@@ -18,6 +18,7 @@ interface PropChallenge {
 
 interface Progress {
     totalPnl: string;
+    totalPnlAfterSplit: string;
     totalTrades: number;
     distanceToTarget: string;
     progressPercent: string;
@@ -311,11 +312,16 @@ export default function PropPage() {
                                     <div className="card-title" style={{ marginBottom: 16 }}>Progresso do Challenge</div>
                                     <div className="grid-2" style={{ gap: 16, marginBottom: 20 }}>
                                         <div>
-                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>P&L Acumulado</div>
+                                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Resultado Líquido (Real + Taxas)</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: Number(progress.totalPnl) >= 0 ? 'var(--green-bright)' : 'var(--red-bright)' }}>
                                                 R$ {Number(progress.totalPnl).toLocaleString('pt-BR')}
                                             </div>
-                                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>de R$ {plan.challenge?.profitTarget?.toLocaleString('pt-BR')} meta</div>
+                                            {progress.totalPnlAfterSplit !== progress.totalPnl && (
+                                                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, fontWeight: 600 }}>
+                                                    Sua Parte: <span style={{ color: Number(progress.totalPnlAfterSplit) >= 0 ? 'var(--green-bright)' : 'var(--red-bright)' }}>R$ {Number(progress.totalPnlAfterSplit).toLocaleString('pt-BR')}</span>
+                                                </div>
+                                            )}
+                                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>de R$ {plan.challenge?.profitTarget?.toLocaleString('pt-BR')} meta</div>
                                             <div className="progress-bar" style={{ marginTop: 8 }}>
                                                 <div className="progress-fill green" style={{ width: `${Math.min(100, progressPct)}%` }} />
                                             </div>

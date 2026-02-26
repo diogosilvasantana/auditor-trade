@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { imports as importsApi } from '@/lib/api';
+import { useAccount } from '@/lib/AccountContext';
 
 interface Import {
     id: string;
@@ -35,7 +36,10 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function ImportsPage() {
+    const { accounts } = useAccount();
+    const [selectedAccountForImport, setSelectedAccountForImport] = useState<string>('');
     const [importList, setImportList] = useState<Import[]>([]);
+    const [error, setError] = useState<string | null>(null);
     const [loaded, setLoaded] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [dragOver, setDragOver] = useState(false);
@@ -43,9 +47,16 @@ export default function ImportsPage() {
     const fileRef = useRef<HTMLInputElement>(null);
 
     async function loadImports() {
-        const data = (await importsApi.list()) as Import[];
-        setImportList(data);
-        setLoaded(true);
+        try {
+            const data = (await importsApi.list()) as Import[];
+            setImportList(data);
+            setError(null);
+        } catch (err) {
+            console.error('Failed to load imports:', err);
+            setError('Erro ao carregar histórico.');
+        } finally {
+            setLoaded(true);
+        }
     }
 
     async function handleFile(file: File) {
@@ -53,7 +64,7 @@ export default function ImportsPage() {
         setUploading(true);
         setUploadMsg('');
         try {
-            await importsApi.upload(file);
+            await importsApi.upload(file, selectedAccountForImport);
             setUploadMsg('✓ Upload iniciado! Aguarde o processamento.');
             await loadImports();
         } catch (err: unknown) {
@@ -75,10 +86,16 @@ export default function ImportsPage() {
         if (file) handleFile(file);
     }
 
-    // Load on mount
-    if (!loaded) {
+    useEffect(() => {
         loadImports();
-        return null;
+    }, []);
+
+    if (!loaded) {
+        return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Carregando dados...</div>;
+    }
+
+    if (error) {
+        return <div className="card" style={{ textAlign: 'center', padding: 40 }}>{error}</div>;
     }
 
     return (
@@ -86,6 +103,28 @@ export default function ImportsPage() {
             <div className="page-header">
                 <h1 className="page-title">Importações</h1>
                 <p className="page-subtitle">Importe relatórios do Profit (CSV ou XLSX)</p>
+            </div>
+
+            <div className="card mb-lg" style={{ padding: 'var(--gap-md)' }}>
+                <div className="form-group mb-0">
+                    <label className="input-label">Conta de Destino</label>
+                    <select
+                        className="input"
+                        value={selectedAccountForImport}
+                        onChange={(e) => setSelectedAccountForImport(e.target.value)}
+                        style={{ maxWidth: 400 }}
+                    >
+                        <option value="">Auto-detetar conta pelo ficheiro (Default)</option>
+                        {accounts.map(acc => (
+                            <option key={acc.id} value={acc.id}>
+                                {acc.name} ({acc.type})
+                            </option>
+                        ))}
+                    </select>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                        Selecione uma conta para forçar a vinculação de todos os trades deste ficheiro.
+                    </p>
+                </div>
             </div>
 
             {/* Upload Zone */}

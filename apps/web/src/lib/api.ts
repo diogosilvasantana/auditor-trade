@@ -4,12 +4,14 @@ async function request<T>(
     endpoint: string,
     options?: RequestInit,
 ): Promise<T> {
+    const headers: any = { ...options?.headers };
+    if (!(options?.body instanceof FormData) && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+    }
+
     const res = await fetch(`${API_BASE}${endpoint}`, {
         credentials: 'include',
-        headers: {
-            'Content-Type': 'application/json',
-            ...options?.headers,
-        },
+        headers,
         ...options,
     });
 
@@ -51,9 +53,10 @@ export const accounts = {
 
 // Imports
 export const imports = {
-    upload: (file: File) => {
+    upload: (file: File, accountId?: string) => {
         const form = new FormData();
         form.append('file', file);
+        if (accountId) form.append('accountId', accountId);
         return request('/imports', {
             method: 'POST',
             body: form,
@@ -124,15 +127,20 @@ export const insights = {
 
 // Plans
 export const plans = {
-    getActive: () => request('/plans/active'),
+    getActive: (accountId?: string) => {
+        const p = new URLSearchParams();
+        if (accountId) p.set('accountId', accountId);
+        return request(`/plans/active?${p}`);
+    },
     create: (data: unknown) =>
         request('/plans', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: unknown) =>
         request(`/plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    violations: (start?: string, end?: string) => {
+    violations: (start?: string, end?: string, accountId?: string) => {
         const p = new URLSearchParams();
         if (start) p.set('start', start);
         if (end) p.set('end', end);
+        if (accountId) p.set('accountId', accountId);
         return request(`/plans/violations?${p}`);
     },
 };

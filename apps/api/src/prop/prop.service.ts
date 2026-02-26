@@ -88,8 +88,13 @@ export class PropService {
     async getProgress(userId: string, id: string, q: { start?: string; end?: string }) {
         const challenge = await this.prisma.propChallenge.findFirst({
             where: { id, userId },
+            include: { account: true },
         });
         if (!challenge) throw new NotFoundException('Challenge not found');
+
+        const account = challenge.account;
+        const feePerContract = account?.feePerContract ? Number(account.feePerContract) : 0;
+        const profitSplit = account?.profitSplit ? Number(account.profitSplit) / 100 : 1;
 
         const gte = q.start
             ? new Date(q.start)
@@ -107,15 +112,29 @@ export class PropService {
                     in: (challenge.allowedSymbols as string[]).map((s) => s as any),
                 },
             },
-            select: { pnl: true, tradeDate: true, accountId: true },
+            select: { pnl: true, tradeDate: true, accountId: true, quantity: true },
             orderBy: { tradeDate: 'asc' },
         });
 
-        const totalPnl = trades.reduce((acc: number, t: any) => acc + Number(t.pnl), 0);
-        const wins = trades.filter((t: any) => Number(t.pnl) > 0).length;
-        const losses = trades.filter((t: any) => Number(t.pnl) < 0).length;
-        const totalTrades = trades.length;
-        const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+        const stats = trades.reduce((acc: { totalGrossPnl: number; totalNetPnl: number; totalTrades: number; wins: number; losses: number }, t: any) => {
+            const pnl = Number(t.pnl);
+            const qty = Number(t.quantity);
+            const netPnl = pnl - (qty * feePerContract);
+
+            acc.totalGrossPnl += pnl;
+            acc.totalNetPnl += netPnl;
+            acc.totalTrades++;
+            if (netPnl > 0) acc.wins++;
+            else if (netPnl < 0) acc.losses++;
+            return acc;
+        }, { totalGrossPnl: 0, totalNetPnl: 0, totalTrades: 0, wins: 0, losses: 0 });
+
+        const totalPnlBeforeSplit = stats.totalNetPnl;
+        // profitSplit only applies when positive? Or always? Usually, we show Net before Split in progress.
+        // But the user asked for "resultado líquido correto".
+        const totalPnlAfterSplit = totalPnlBeforeSplit > 0 ? totalPnlBeforeSplit * profitSplit : totalPnlBeforeSplit;
+
+        const winRate = stats.totalTrades > 0 ? (stats.wins / stats.totalTrades) * 100 : 0;
 
         // Max Drawdown calculation (based on balance peaks)
         let maxDrawdown = 0;
@@ -128,7 +147,10 @@ export class PropService {
         );
 
         for (const t of sortedTrades) {
-            currentBalance += Number(t.pnl);
+            const pnl = Number(t.pnl);
+            const qty = Number(t.quantity);
+            const netPnl = pnl - (qty * feePerContract);
+            currentBalance += netPnl;
             if (currentBalance > peak) peak = currentBalance;
             const drawdown = peak - currentBalance;
             if (drawdown > maxDrawdown) maxDrawdown = drawdown;
@@ -140,10 +162,11 @@ export class PropService {
         return {
             challenge,
             progress: {
-                totalPnl: totalPnl.toFixed(2),
-                totalTrades,
-                distanceToTarget: (target - totalPnl).toFixed(2),
-                progressPercent: Math.min(100, ((totalPnl / target) * 100)).toFixed(1),
+                totalPnl: totalPnlBeforeSplit.toFixed(2),
+                totalPnlAfterSplit: totalPnlAfterSplit.toFixed(2),
+                totalTrades: stats.totalTrades,
+                distanceToTarget: (target - totalPnlBeforeSplit).toFixed(2),
+                progressPercent: ((totalPnlBeforeSplit / target) * 100).toFixed(1),
                 maxDrawdownUsed: maxDrawdown.toFixed(2),
                 drawdownPercent: ((maxDrawdown / maxDD) * 100).toFixed(1),
                 drawdownRemaining: (maxDD - maxDrawdown).toFixed(2),

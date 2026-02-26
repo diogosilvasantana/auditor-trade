@@ -32,7 +32,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "node_modules/.bin/prisma migrate deploy && node dist/main"
+    volumes:
+      - ./apps/api/src:/app/src
+      - ./apps/api/prisma:/app/prisma
+    command: sh -c "npx prisma db push && pnpm run dev"
 
   web:
     build:

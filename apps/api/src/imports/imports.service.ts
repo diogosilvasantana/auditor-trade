@@ -28,17 +28,18 @@ export class ImportsService {
         private accountsService: AccountsService,
     ) { }
 
-    async createImport(userId: string, file: Express.Multer.File) {
+    async createImport(userId: string, file: Express.Multer.File, accountId?: string) {
         const imp = await this.prisma.import.create({
             data: {
                 userId,
                 filenameOriginal: file.originalname,
                 status: 'PENDING',
+                accountId: accountId || undefined,
             },
         });
 
         // Process synchronously (simple V1 - no queue needed)
-        this.processFile(imp.id, userId, file).catch(async (err) => {
+        this.processFile(imp.id, userId, file, accountId).catch(async (err) => {
             await this.prisma.import.update({
                 where: { id: imp.id },
                 data: { status: 'ERROR', errorMessage: err.message, finishedAt: new Date() },
@@ -52,6 +53,7 @@ export class ImportsService {
         importId: string,
         userId: string,
         file: Express.Multer.File,
+        manualAccountId?: string,
     ) {
         await this.prisma.import.update({
             where: { id: importId },
@@ -72,11 +74,14 @@ export class ImportsService {
             throw new BadRequestException('Unsupported file format. Use CSV or XLSX.');
         }
 
-        let accountId: string | null = null;
-        if (detectedAccountNumber) {
+        let accountId: string | null = manualAccountId || null;
+
+        if (!accountId && detectedAccountNumber) {
             const account = await this.accountsService.findOrCreateByAccountNumber(userId, detectedAccountNumber);
             accountId = account.id;
+        }
 
+        if (accountId) {
             // Link account to the import
             await this.prisma.import.update({
                 where: { id: importId },

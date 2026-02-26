@@ -21,6 +21,7 @@ const navItems = [
             { href: '/planner', label: 'Plano de Trade', icon: '≡' },
             { href: '/prop', label: 'Mesa Proprietária', icon: '⬡' },
             { href: '/journal', label: 'Diário', icon: '✎' },
+            { href: '/accounts', label: 'Gerir Contas', icon: '⚙' },
         ],
     },
 ];

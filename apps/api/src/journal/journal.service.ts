@@ -45,21 +45,21 @@ export class JournalService {
             where: { userId_date: { userId, date: dateObj } },
         });
 
-        // Get trading context for this date
-        const stat = await this.prisma.dailyStat.findUnique({
-            where: { userId_date: { userId, date: dateObj } },
+        // Get trading context for this date (aggregate all accounts)
+        const stats = await this.prisma.dailyStat.findMany({
+            where: { userId, date: dateObj },
         });
+
+        const context = stats.length > 0 ? stats.reduce((acc, curr) => ({
+            pnl: acc.pnl + Number(curr.totalPnl),
+            trades: acc.trades + curr.totalTrades,
+            wins: acc.wins + curr.wins,
+            losses: acc.losses + curr.losses
+        }), { pnl: 0, trades: 0, wins: 0, losses: 0 }) : null;
 
         return {
             entry,
-            context: stat
-                ? {
-                    pnl: Number(stat.totalPnl),
-                    trades: stat.totalTrades,
-                    wins: stat.wins,
-                    losses: stat.losses,
-                }
-                : null,
+            context,
         };
     }
 }

@@ -6,23 +6,32 @@ import { CreatePlanDto } from './dto/plan.dto';
 export class PlansService {
     constructor(private prisma: PrismaService) { }
 
-    async getActive(userId: string) {
+    async getActive(userId: string, accountId?: string) {
         return this.prisma.tradePlan.findFirst({
-            where: { userId, isActive: true },
+            where: {
+                userId,
+                accountId: accountId || null,
+                isActive: true
+            },
             orderBy: { createdAt: 'desc' },
         });
     }
 
-    async create(userId: string, dto: CreatePlanDto) {
-        // Deactivate existing active plans
+    async create(userId: string, dto: CreatePlanDto & { accountId?: string }) {
+        // Deactivate existing active plans for this context
         await this.prisma.tradePlan.updateMany({
-            where: { userId, isActive: true },
+            where: {
+                userId,
+                accountId: dto.accountId || null,
+                isActive: true
+            },
             data: { isActive: false },
         });
 
         return this.prisma.tradePlan.create({
             data: {
                 userId,
+                accountId: dto.accountId || null,
                 name: dto.name,
                 dailyLossLimit: dto.dailyLossLimit,
                 maxTradesPerDay: dto.maxTradesPerDay,
@@ -47,15 +56,19 @@ export class PlansService {
         });
     }
 
-    async getViolations(userId: string, q: { start?: string; end?: string }) {
-        const plan = await this.getActive(userId);
+    async getViolations(userId: string, q: { start?: string; end?: string; accountId?: string }) {
+        const plan = await this.getActive(userId, q.accountId);
         if (!plan) return { violations: [], plan: null };
 
         const gte = q.start ? new Date(q.start) : undefined;
         const lte = q.end ? new Date(q.end) : undefined;
 
         const trades = await this.prisma.trade.findMany({
-            where: { userId, tradeDate: { gte, lte } },
+            where: {
+                userId,
+                accountId: q.accountId || null,
+                tradeDate: { gte, lte }
+            },
             select: { tradeDate: true, pnl: true },
             orderBy: { tradeDate: 'asc' },
         });

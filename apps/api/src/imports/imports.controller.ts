@@ -4,6 +4,7 @@ import {
     Get,
     Delete,
     Param,
+    Body,
     UseGuards,
     Request,
     UseInterceptors,
@@ -28,9 +29,10 @@ export class ImportsController {
     upload(
         @UploadedFile() file: Express.Multer.File,
         @Request() req: any,
+        @Body('accountId') accountId?: string,
     ) {
         if (!file) throw new BadRequestException('No file uploaded');
-        return this.imports.createImport(req.user.id, file);
+        return this.imports.createImport(req.user.id, file, accountId);
     }
 
     @Get()

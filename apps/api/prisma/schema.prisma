@@ -1,6 +1,3 @@
-// This is your Prisma schema file
-// Trade Auditor Pro - V1 MVP
-
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
@@ -12,47 +9,42 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  timezone     String   @default("America/Sao_Paulo")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  imports        Import[]
-  trades         Trade[]
-  dailyStats     DailyStat[]
-  insights       Insight[]
-  tradePlans     TradePlan[]
-  propChallenges PropChallenge[]
-  journalEntries JournalEntry[]
+  id             String          @id @default(uuid())
+  email          String          @unique
+  passwordHash   String          @map("password_hash")
+  timezone       String          @default("America/Sao_Paulo")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
   accounts       Account[]
+  dailyStats     DailyStat[]
+  imports        Import[]
+  insights       Insight[]
+  journalEntries JournalEntry[]
+  propChallenges PropChallenge[]
+  tradePlans     TradePlan[]
+  trades         Trade[]
 
   @@map("users")
 }
 
-enum AccountType {
-  PERSONAL
-  PROP_FIRM
-  SIMULATOR
-}
-
 model Account {
-  id            String      @id @default(uuid())
-  userId        String      @map("user_id")
-  name          String
-  type          AccountType
-  broker        String?
-  accountNumber String?     @map("account_number")
-  isActive      Boolean     @default(true) @map("is_active")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-
+  id             String          @id @default(uuid())
+  userId         String          @map("user_id")
+  name           String
+  type           AccountType
+  broker         String?
+  accountNumber  String?         @map("account_number")
+  isActive       Boolean         @default(true) @map("is_active")
+  feePerContract Decimal?        @map("fee_per_contract") @db.Decimal(10, 2)
+  profitSplit    Decimal?        @map("profit_split") @db.Decimal(5, 2)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trades         Trade[]
-  imports        Import[]
   dailyStats     DailyStat[]
+  imports        Import[]
   propChallenges PropChallenge[]
+  tradePlans     TradePlan[]
+  trades         Trade[]
 
   @@map("accounts")
 }
@@ -70,21 +62,12 @@ model Import {
   importedRows     Int          @default(0) @map("imported_rows")
   skippedRows      Int          @default(0) @map("skipped_rows")
   createdAt        DateTime     @default(now()) @map("created_at")
-
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trades Trade[]
-
-  accountId String?  @map("account_id")
-  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  accountId        String?      @map("account_id")
+  account          Account?     @relation(fields: [accountId], references: [id])
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades           Trade[]
 
   @@map("imports")
-}
-
-enum ImportStatus {
-  PENDING
-  PROCESSING
-  DONE
-  ERROR
 }
 
 model Trade {
@@ -101,29 +84,15 @@ model Trade {
   exitTime     DateTime?  @map("exit_time")
   externalHash String     @map("external_hash")
   createdAt    DateTime   @default(now()) @map("created_at")
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  import Import @relation(fields: [importId], references: [id], onDelete: Cascade)
-
-  accountId String?  @map("account_id")
-  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  accountId    String?    @map("account_id")
+  account      Account?   @relation(fields: [accountId], references: [id])
+  import       Import     @relation(fields: [importId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, externalHash])
   @@index([userId, tradeDate])
   @@index([userId, symbol])
   @@map("trades")
-}
-
-enum Symbol {
-  WIN
-  WDO
-  BTC
-  OTHER
-}
-
-enum TradeSide {
-  BUY
-  SELL
 }
 
 model DailyStat {
@@ -136,11 +105,9 @@ model DailyStat {
   losses      Int
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  accountId String?  @map("account_id")
-  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  accountId   String?  @map("account_id")
+  account     Account? @relation(fields: [accountId], references: [id])
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, accountId, date])
   @@index([userId, date])
@@ -159,16 +126,9 @@ model Insight {
   periodEnd    DateTime?   @map("period_end")
   evidenceJson Json?       @map("evidence_json")
   createdAt    DateTime    @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("insights")
-}
-
-enum InsightType {
-  ERROR_HERE
-  WORST_TIME
-  FOCUS_SYMBOL
 }
 
 model TradePlan {
@@ -184,8 +144,9 @@ model TradePlan {
   pauseMinutes                Int      @default(15) @map("pause_minutes")
   createdAt                   DateTime @default(now()) @map("created_at")
   updatedAt                   DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId                   String?  @map("account_id")
+  account                     Account? @relation(fields: [accountId], references: [id])
+  user                        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("trade_plans")
 }
@@ -203,11 +164,9 @@ model PropChallenge {
   startDate            DateTime? @map("start_date")
   endDate              DateTime? @map("end_date")
   createdAt            DateTime  @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  accountId String?  @map("account_id")
-  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  accountId            String?   @map("account_id")
+  account              Account?  @relation(fields: [accountId], references: [id])
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("prop_challenges")
 }
@@ -221,11 +180,41 @@ model JournalEntry {
   triggers     Json?
   notes        String?
   createdAt    DateTime       @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
   @@map("journal_entries")
+}
+
+enum AccountType {
+  PERSONAL
+  PROP_FIRM
+  SIMULATOR
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  DONE
+  ERROR
+}
+
+enum Symbol {
+  WIN
+  WDO
+  BTC
+  OTHER
+}
+
+enum TradeSide {
+  BUY
+  SELL
+}
+
+enum InsightType {
+  ERROR_HERE
+  WORST_TIME
+  FOCUS_SYMBOL
 }
 
 enum JournalEmotion {
