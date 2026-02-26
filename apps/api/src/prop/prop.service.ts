@@ -107,22 +107,31 @@ export class PropService {
                     in: (challenge.allowedSymbols as string[]).map((s) => s as any),
                 },
             },
-            select: { pnl: true, tradeDate: true },
+            select: { pnl: true, tradeDate: true, accountId: true },
             orderBy: { tradeDate: 'asc' },
         });
 
-        const totalPnl = trades.reduce((s, t) => s + Number(t.pnl), 0);
+        const totalPnl = trades.reduce((acc: number, t: any) => acc + Number(t.pnl), 0);
+        const wins = trades.filter((t: any) => Number(t.pnl) > 0).length;
+        const losses = trades.filter((t: any) => Number(t.pnl) < 0).length;
         const totalTrades = trades.length;
+        const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
 
-        let runningBalance = 0;
+        // Max Drawdown calculation (based on balance peaks)
         let maxDrawdown = 0;
         let peak = 0;
+        let currentBalance = 0;
 
-        for (const t of trades) {
-            runningBalance += Number(t.pnl);
-            if (runningBalance > peak) peak = runningBalance;
-            const dd = peak - runningBalance;
-            if (dd > maxDrawdown) maxDrawdown = dd;
+        // Sort trades by date for drawdown calculation
+        const sortedTrades = [...trades].sort((a: any, b: any) =>
+            new Date(a.tradeDate).getTime() - new Date(b.tradeDate).getTime()
+        );
+
+        for (const t of sortedTrades) {
+            currentBalance += Number(t.pnl);
+            if (currentBalance > peak) peak = currentBalance;
+            const drawdown = peak - currentBalance;
+            if (drawdown > maxDrawdown) maxDrawdown = drawdown;
         }
 
         const target = Number(challenge.profitTarget);
@@ -138,7 +147,7 @@ export class PropService {
                 maxDrawdownUsed: maxDrawdown.toFixed(2),
                 drawdownPercent: ((maxDrawdown / maxDD) * 100).toFixed(1),
                 drawdownRemaining: (maxDD - maxDrawdown).toFixed(2),
-                tradingDays: new Set(trades.map((t) => t.tradeDate.toISOString().split('T')[0]))
+                tradingDays: new Set(trades.map((t: any) => t.tradeDate.toISOString().split('T')[0]))
                     .size,
             },
         };

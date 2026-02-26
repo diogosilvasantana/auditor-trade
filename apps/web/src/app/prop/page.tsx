@@ -13,6 +13,7 @@ interface PropChallenge {
     allowedSymbols: string[];
     accountId?: string;
     createdAt: string;
+    rulesText?: string;
 }
 
 interface Progress {
@@ -35,6 +36,7 @@ export default function PropPage() {
     const [showForm, setShowForm] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     // Form
     const [name, setName] = useState('');
@@ -68,11 +70,23 @@ export default function PropPage() {
         });
     }, [selected]);
 
-    async function handleCreate(e: FormEvent) {
+    function openEditForm(c: PropChallenge) {
+        setEditingId(c.id);
+        setName(c.name);
+        setProfitTarget(String(c.profitTarget));
+        setDailyMaxLoss(String(c.dailyMaxLoss));
+        setTotalMaxDrawdown(String(c.totalMaxDrawdown));
+        setSymbols(c.allowedSymbols);
+        setRulesText(c.rulesText || '');
+        setAccountId(c.accountId || '');
+        setShowForm(true);
+    }
+
+    async function handleSave(e: FormEvent) {
         e.preventDefault();
         setSaving(true);
         try {
-            await prop.create({
+            const data = {
                 name,
                 profitTarget: Number(profitTarget),
                 dailyMaxLoss: Number(dailyMaxLoss),
@@ -80,19 +94,33 @@ export default function PropPage() {
                 allowedSymbols: symbols,
                 rulesText,
                 accountId: accountId || undefined,
-            });
+            };
+
+            if (editingId) {
+                await prop.update(editingId, data);
+            } else {
+                await prop.create(data);
+            }
+
             refresh();
-            setShowForm(false);
-            setName('');
-            setProfitTarget('');
-            setDailyMaxLoss('');
-            setTotalMaxDrawdown('');
-            setAccountId('');
+            resetForm();
         } catch (err) {
             console.error(err);
         } finally {
             setSaving(false);
         }
+    }
+
+    function resetForm() {
+        setShowForm(false);
+        setEditingId(null);
+        setName('');
+        setProfitTarget('');
+        setDailyMaxLoss('');
+        setTotalMaxDrawdown('');
+        setSymbols(['WIN', 'WDO']);
+        setRulesText('');
+        setAccountId('');
     }
 
     async function handleDelete(id: string) {
@@ -112,15 +140,17 @@ export default function PropPage() {
                     <h1 className="page-title">Mesa Proprietária</h1>
                     <p className="page-subtitle">Simule e planeje aprovação em desafios de prop trading</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowForm((s) => !s)}>
+                <button className="btn btn-primary" onClick={() => (showForm ? resetForm() : setShowForm(true))}>
                     {showForm ? 'Cancelar' : '+ Novo challenge'}
                 </button>
             </div>
 
             {showForm && (
                 <div className="card mb-xl">
-                    <div className="card-title" style={{ marginBottom: 16 }}>Configurar challenge</div>
-                    <form onSubmit={handleCreate}>
+                    <h2 className="card-title" style={{ marginBottom: 'var(--gap-md)' }}>
+                        {editingId ? 'Editar Desafio' : 'Novo Desafio'}
+                    </h2>
+                    <form onSubmit={handleSave}>
                         <div className="form-group">
                             <label className="input-label">Nome do challenge</label>
                             <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="ex: SurgeTrader 50K" />
@@ -175,7 +205,7 @@ export default function PropPage() {
                             <textarea className="input" value={rulesText} onChange={(e) => setRulesText(e.target.value)} placeholder="Regras específicas da prop..." />
                         </div>
                         <button type="submit" className="btn btn-primary" disabled={saving}>
-                            {saving ? <><span className="spinner" /> Criando...</> : '✓ Criar challenge'}
+                            {saving ? <><span className="spinner" /> Salvando...</> : editingId ? '✓ Atualizar challenge' : '✓ Criar challenge'}
                         </button>
                     </form>
                 </div>
@@ -190,10 +220,10 @@ export default function PropPage() {
                     <p style={{ fontSize: 13, marginTop: 8 }}>Clique em "Novo challenge" para começar.</p>
                 </div>
             ) : (
-                <div className="prop-layout" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 'var(--gap-lg)' }}>
+                <div className="prop-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 300px) 1fr', gap: 'var(--gap-lg)' }}>
                     {/* Challenge List Sidebar */}
                     <div className="prop-sidebar">
-                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>Ativos</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>Seus Desafios</div>
                         <div className="prop-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             {challenges.map(c => (
                                 <div
@@ -217,16 +247,30 @@ export default function PropPage() {
                                                 {c.accountId ? 'Conta Vinculada' : 'Global (Todos os trades)'}
                                             </p>
                                         </div>
-                                        <button
-                                            className="btn-icon delete"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDelete(c.id);
-                                            }}
-                                            title="Excluir desafio"
-                                        >
-                                            ✕
-                                        </button>
+                                        <div style={{ display: 'flex', gap: 4 }}>
+                                            <button
+                                                className="btn-icon"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openEditForm(c);
+                                                }}
+                                                title="Editar desafio"
+                                                style={{ padding: '2px 6px', fontSize: 12 }}
+                                            >
+                                                ⚙
+                                            </button>
+                                            <button
+                                                className="btn-icon delete"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDelete(c.id);
+                                                }}
+                                                title="Excluir desafio"
+                                                style={{ padding: '2px 6px', fontSize: 12 }}
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
