@@ -1,0 +1,204 @@
+// This is your Prisma schema file
+// Trade Auditor Pro - V1 MVP
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  timezone     String   @default("America/Sao_Paulo")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  imports        Import[]
+  trades         Trade[]
+  dailyStats     DailyStat[]
+  insights       Insight[]
+  tradePlans     TradePlan[]
+  propChallenges PropChallenge[]
+  journalEntries JournalEntry[]
+
+  @@map("users")
+}
+
+model Import {
+  id               String       @id @default(uuid())
+  userId           String       @map("user_id")
+  filenameOriginal String       @map("filename_original")
+  storagePath      String?      @map("storage_path")
+  status           ImportStatus @default(PENDING)
+  startedAt        DateTime?    @map("started_at")
+  finishedAt       DateTime?    @map("finished_at")
+  errorMessage     String?      @map("error_message")
+  totalRows        Int          @default(0) @map("total_rows")
+  importedRows     Int          @default(0) @map("imported_rows")
+  skippedRows      Int          @default(0) @map("skipped_rows")
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades Trade[]
+
+  @@map("imports")
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  DONE
+  ERROR
+}
+
+model Trade {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  importId      String    @map("import_id")
+  tradeDate     DateTime  @map("trade_date")
+  symbol        Symbol
+  quantity      Decimal
+  pnl           Decimal
+  fees          Decimal?
+  side          TradeSide?
+  entryTime     DateTime? @map("entry_time")
+  exitTime      DateTime? @map("exit_time")
+  externalHash  String    @map("external_hash")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  import Import @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalHash])
+  @@index([userId, tradeDate])
+  @@index([userId, symbol])
+  @@map("trades")
+}
+
+enum Symbol {
+  WIN
+  WDO
+  BTC
+  OTHER
+}
+
+enum TradeSide {
+  BUY
+  SELL
+}
+
+model DailyStat {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  date        DateTime @db.Date
+  totalPnl    Decimal  @map("total_pnl")
+  totalTrades Int      @map("total_trades")
+  wins        Int
+  losses      Int
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("daily_stats")
+}
+
+model Insight {
+  id          String      @id @default(uuid())
+  userId      String      @map("user_id")
+  type        InsightType
+  title       String
+  description String
+  score       Int
+  sampleSize  Int         @map("sample_size")
+  periodStart DateTime?   @map("period_start")
+  periodEnd   DateTime?   @map("period_end")
+  evidenceJson Json?      @map("evidence_json")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("insights")
+}
+
+enum InsightType {
+  ERROR_HERE
+  WORST_TIME
+  FOCUS_SYMBOL
+}
+
+model TradePlan {
+  id                          String   @id @default(uuid())
+  userId                      String   @map("user_id")
+  name                        String
+  isActive                    Boolean  @default(true) @map("is_active")
+  dailyLossLimit              Decimal  @map("daily_loss_limit")
+  maxTradesPerDay             Int      @map("max_trades_per_day")
+  allowedTimeWindows          Json?    @map("allowed_time_windows")
+  maxContractsBySymbol        Json?    @map("max_contracts_by_symbol")
+  pauseAfterConsecutiveLosses Int      @default(3) @map("pause_after_consecutive_losses")
+  pauseMinutes                Int      @default(15) @map("pause_minutes")
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("trade_plans")
+}
+
+model PropChallenge {
+  id                   String   @id @default(uuid())
+  userId               String   @map("user_id")
+  name                 String
+  profitTarget         Decimal  @map("profit_target")
+  dailyMaxLoss         Decimal  @map("daily_max_loss")
+  totalMaxDrawdown     Decimal  @map("total_max_drawdown")
+  allowedSymbols       Json     @map("allowed_symbols")
+  maxContractsBySymbol Json?    @map("max_contracts_by_symbol")
+  rulesText            String?  @map("rules_text")
+  startDate            DateTime? @map("start_date")
+  endDate              DateTime? @map("end_date")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("prop_challenges")
+}
+
+model JournalEntry {
+  id          String        @id @default(uuid())
+  userId      String        @map("user_id")
+  date        DateTime      @db.Date
+  emotion     JournalEmotion
+  followedPlan FollowedPlan @map("followed_plan")
+  triggers    Json?
+  notes       String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("journal_entries")
+}
+
+enum JournalEmotion {
+  CALMO
+  ANSIOSO
+  IRRITADO
+  EUFORICO
+  OUTRO
+}
+
+enum FollowedPlan {
+  SIM
+  NAO
+  PARCIAL
+}

@@ -1,0 +1,151 @@
+const API_BASE = '/api';
+
+async function request<T>(
+    endpoint: string,
+    options?: RequestInit,
+): Promise<T> {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            ...options?.headers,
+        },
+        ...options,
+    });
+
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({ message: 'Request failed' }));
+        throw new Error(error.message || `HTTP ${res.status}`);
+    }
+
+    const text = await res.text();
+    return text ? JSON.parse(text) : ({} as T);
+}
+
+// Auth
+export const auth = {
+    register: (email: string, password: string) =>
+        request('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+        }),
+
+    login: (email: string, password: string) =>
+        request('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+        }),
+
+    logout: () => request('/auth/logout', { method: 'POST' }),
+
+    me: () => request('/auth/me'),
+};
+
+// Imports
+export const imports = {
+    upload: (file: File) => {
+        const form = new FormData();
+        form.append('file', file);
+        return request('/imports', {
+            method: 'POST',
+            body: form,
+            headers: {}, // Let browser set Content-Type with boundary
+        });
+    },
+
+    list: () => request('/imports'),
+    get: (id: string) => request(`/imports/${id}`),
+    delete: (id: string) => request(`/imports/${id}`, { method: 'DELETE' }),
+};
+
+// Analytics
+export const analytics = {
+    overview: (start?: string, end?: string) => {
+        const p = new URLSearchParams();
+        if (start) p.set('start', start);
+        if (end) p.set('end', end);
+        return request(`/analytics/overview?${p}`);
+    },
+
+    bySymbol: (start?: string, end?: string) => {
+        const p = new URLSearchParams();
+        if (start) p.set('start', start);
+        if (end) p.set('end', end);
+        return request(`/analytics/by-symbol?${p}`);
+    },
+
+    heatmap: (opts?: { start?: string; end?: string; symbol?: string; bucket?: number }) => {
+        const p = new URLSearchParams();
+        if (opts?.start) p.set('start', opts.start);
+        if (opts?.end) p.set('end', opts.end);
+        if (opts?.symbol) p.set('symbol', opts.symbol);
+        if (opts?.bucket) p.set('bucket', String(opts.bucket));
+        return request(`/analytics/heatmap?${p}`);
+    },
+
+    byWeekday: (start?: string, end?: string) => {
+        const p = new URLSearchParams();
+        if (start) p.set('start', start);
+        if (end) p.set('end', end);
+        return request(`/analytics/by-weekday?${p}`);
+    },
+
+    trades: (start?: string, end?: string) => {
+        const p = new URLSearchParams();
+        if (start) p.set('start', start);
+        if (end) p.set('end', end);
+        return request(`/analytics/trades?${p}`);
+    },
+};
+
+// Insights
+export const insights = {
+    get: (start?: string, end?: string) => {
+        const p = new URLSearchParams();
+        if (start) p.set('start', start);
+        if (end) p.set('end', end);
+        return request(`/insights?${p}`);
+    },
+};
+
+// Plans
+export const plans = {
+    getActive: () => request('/plans/active'),
+    create: (data: unknown) =>
+        request('/plans', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: unknown) =>
+        request(`/plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    violations: (start?: string, end?: string) => {
+        const p = new URLSearchParams();
+        if (start) p.set('start', start);
+        if (end) p.set('end', end);
+        return request(`/plans/violations?${p}`);
+    },
+};
+
+// Prop Challenges
+export const prop = {
+    list: () => request('/prop-challenges'),
+    create: (data: unknown) =>
+        request('/prop-challenges', { method: 'POST', body: JSON.stringify(data) }),
+    getPlan: (id: string) => request(`/prop-challenges/${id}/plan`),
+    getProgress: (id: string, start?: string, end?: string) => {
+        const p = new URLSearchParams();
+        if (start) p.set('start', start);
+        if (end) p.set('end', end);
+        return request(`/prop-challenges/${id}/progress?${p}`);
+    },
+};
+
+// Journal
+export const journal = {
+    list: (start?: string, end?: string) => {
+        const p = new URLSearchParams();
+        if (start) p.set('start', start);
+        if (end) p.set('end', end);
+        return request(`/journal?${p}`);
+    },
+    getByDate: (date: string) => request(`/journal/${date}`),
+    create: (data: unknown) =>
+        request('/journal', { method: 'POST', body: JSON.stringify(data) }),
+};

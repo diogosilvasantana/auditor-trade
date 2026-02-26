@@ -1,0 +1,16 @@
+{
+    "name": "auditor-trade",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "docker-compose up",
+        "dev:api": "pnpm --filter api dev",
+        "dev:web": "pnpm --filter web dev",
+        "build": "pnpm -r build",
+        "lint": "pnpm -r lint"
+    },
+    "engines": {
+        "node": ">=20",
+        "pnpm": ">=9"
+    }
+}
