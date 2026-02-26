@@ -134,6 +134,11 @@ export default function PropPage() {
     const progressPct = parseFloat(progress?.progressPercent || '0');
     const drawdownPct = parseFloat(progress?.drawdownPercent || '0');
 
+    const formatCurrency = (val: string | number | undefined) => {
+        if (val === undefined || val === 'NaN' || val === 'Infinity' || isNaN(Number(val))) return '0,00';
+        return Number(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
     return (
         <div>
             <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -314,14 +319,14 @@ export default function PropPage() {
                                         <div>
                                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Resultado Líquido (Real + Taxas)</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: Number(progress.totalPnl) >= 0 ? 'var(--green-bright)' : 'var(--red-bright)' }}>
-                                                R$ {Number(progress.totalPnl).toLocaleString('pt-BR')}
+                                                R$ {formatCurrency(progress.totalPnl)}
                                             </div>
                                             {progress.totalPnlAfterSplit !== progress.totalPnl && (
                                                 <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, fontWeight: 600 }}>
-                                                    Sua Parte: <span style={{ color: Number(progress.totalPnlAfterSplit) >= 0 ? 'var(--green-bright)' : 'var(--red-bright)' }}>R$ {Number(progress.totalPnlAfterSplit).toLocaleString('pt-BR')}</span>
+                                                    Sua Parte: <span style={{ color: Number(progress.totalPnlAfterSplit) >= 0 ? 'var(--green-bright)' : 'var(--red-bright)' }}>R$ {formatCurrency(progress.totalPnlAfterSplit)}</span>
                                                 </div>
                                             )}
-                                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>de R$ {plan.challenge?.profitTarget?.toLocaleString('pt-BR')} meta</div>
+                                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>de R$ {formatCurrency(plan.challenge?.profitTarget)} meta</div>
                                             <div className="progress-bar" style={{ marginTop: 8 }}>
                                                 <div className="progress-fill green" style={{ width: `${Math.min(100, progressPct)}%` }} />
                                             </div>
@@ -330,9 +335,9 @@ export default function PropPage() {
                                         <div>
                                             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Drawdown usado</div>
                                             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700, color: drawdownPct > 70 ? 'var(--red-bright)' : 'var(--amber-bright)' }}>
-                                                R$ {Number(progress.maxDrawdownUsed).toLocaleString('pt-BR')}
+                                                R$ {formatCurrency(progress.maxDrawdownUsed)}
                                             </div>
-                                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>de R$ {plan.challenge?.totalMaxDrawdown?.toLocaleString('pt-BR')} limite</div>
+                                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>de R$ {formatCurrency(plan.challenge?.totalMaxDrawdown)} limite</div>
                                             <div className="progress-bar" style={{ marginTop: 8 }}>
                                                 <div
                                                     className="progress-fill"
@@ -347,7 +352,7 @@ export default function PropPage() {
                                     </div>
                                     <div className="grid-3" style={{ gap: 12 }}>
                                         {[
-                                            ['Falta para meta', `R$ ${Number(progress.distanceToTarget).toLocaleString('pt-BR')}`],
+                                            ['Falta para meta', `R$ ${formatCurrency(progress.distanceToTarget)}`],
                                             ['Total ops', String(progress.totalTrades)],
                                             ['Dias operados', String(progress.tradingDays)],
                                         ].map(([l, v]) => (

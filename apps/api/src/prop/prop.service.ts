@@ -129,12 +129,15 @@ export class PropService {
             return acc;
         }, { totalGrossPnl: 0, totalNetPnl: 0, totalTrades: 0, wins: 0, losses: 0 });
 
+        const target = Number(challenge.profitTarget) || 1;
+        const maxDD = Number(challenge.totalMaxDrawdown) || 1;
+
         const totalPnlBeforeSplit = stats.totalNetPnl;
-        // profitSplit only applies when positive? Or always? Usually, we show Net before Split in progress.
-        // But the user asked for "resultado líquido correto".
         const totalPnlAfterSplit = totalPnlBeforeSplit > 0 ? totalPnlBeforeSplit * profitSplit : totalPnlBeforeSplit;
 
         const winRate = stats.totalTrades > 0 ? (stats.wins / stats.totalTrades) * 100 : 0;
+
+        const safeDiv = (n: number, d: number) => (d === 0 ? 0 : n / d);
 
         // Max Drawdown calculation (based on balance peaks)
         let maxDrawdown = 0;
@@ -156,21 +159,23 @@ export class PropService {
             if (drawdown > maxDrawdown) maxDrawdown = drawdown;
         }
 
-        const target = Number(challenge.profitTarget);
-        const maxDD = Number(challenge.totalMaxDrawdown);
+        const safeFixed = (val: number, digits: number) => {
+            if (isNaN(val) || !isFinite(val)) return (0).toFixed(digits);
+            return val.toFixed(digits);
+        };
 
         return {
             challenge,
             progress: {
-                totalPnl: totalPnlBeforeSplit.toFixed(2),
-                totalPnlAfterSplit: totalPnlAfterSplit.toFixed(2),
-                totalTrades: stats.totalTrades,
-                distanceToTarget: (target - totalPnlBeforeSplit).toFixed(2),
-                progressPercent: ((totalPnlBeforeSplit / target) * 100).toFixed(1),
-                maxDrawdownUsed: maxDrawdown.toFixed(2),
-                drawdownPercent: ((maxDrawdown / maxDD) * 100).toFixed(1),
-                drawdownRemaining: (maxDD - maxDrawdown).toFixed(2),
-                tradingDays: new Set(trades.map((t: any) => t.tradeDate.toISOString().split('T')[0]))
+                totalPnl: safeFixed(totalPnlBeforeSplit, 2),
+                totalPnlAfterSplit: safeFixed(totalPnlAfterSplit, 2),
+                totalTrades: stats.totalTrades || 0,
+                distanceToTarget: safeFixed(target - totalPnlBeforeSplit, 2),
+                progressPercent: safeFixed(safeDiv(totalPnlBeforeSplit, target) * 100, 1),
+                maxDrawdownUsed: safeFixed(maxDrawdown, 2),
+                drawdownPercent: safeFixed(safeDiv(maxDrawdown, maxDD) * 100, 1),
+                drawdownRemaining: safeFixed(maxDD - maxDrawdown, 2),
+                tradingDays: new Set(trades.map((t: any) => t.tradeDate?.toISOString().split('T')[0]).filter(Boolean))
                     .size,
             },
         };
