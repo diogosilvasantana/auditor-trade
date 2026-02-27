@@ -11,7 +11,8 @@ interface Account {
     broker?: string;
     accountNumber?: string;
     isActive: boolean;
-    feePerContract?: number;
+    winFee?: number;
+    wdoFee?: number;
     profitSplit?: number;
 }
 
@@ -28,7 +29,8 @@ export default function AccountsPage() {
     const [type, setType] = useState<'PERSONAL' | 'PROP_FIRM' | 'SIMULATOR'>('PERSONAL');
     const [broker, setBroker] = useState('');
     const [accountNumber, setAccountNumber] = useState('');
-    const [feePerContract, setFeePerContract] = useState('');
+    const [winFee, setWinFee] = useState('');
+    const [wdoFee, setWdoFee] = useState('');
     const [profitSplit, setProfitSplit] = useState('100');
 
     useEffect(() => {
@@ -53,7 +55,8 @@ export default function AccountsPage() {
         setType(acc.type);
         setBroker(acc.broker || '');
         setAccountNumber(acc.accountNumber || '');
-        setFeePerContract(acc.feePerContract ? String(acc.feePerContract) : '');
+        setWinFee(acc.winFee !== undefined ? String(acc.winFee) : '');
+        setWdoFee(acc.wdoFee !== undefined ? String(acc.wdoFee) : '');
         setProfitSplit(acc.profitSplit ? String(acc.profitSplit) : '100');
         setShowForm(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -65,7 +68,8 @@ export default function AccountsPage() {
         setType('PERSONAL');
         setBroker('');
         setAccountNumber('');
-        setFeePerContract('');
+        setWinFee('');
+        setWdoFee('');
         setProfitSplit('100');
         setShowForm(false);
     }
@@ -79,7 +83,8 @@ export default function AccountsPage() {
                 type,
                 broker,
                 accountNumber,
-                feePerContract: feePerContract ? Number(feePerContract) : undefined,
+                winFee: winFee ? Number(winFee) : undefined,
+                wdoFee: wdoFee ? Number(wdoFee) : undefined,
                 profitSplit: profitSplit ? Number(profitSplit) : undefined
             };
             if (editingId) {
@@ -176,13 +181,70 @@ export default function AccountsPage() {
                             </div>
                         </div>
 
+                        <div className="grid-2" style={{ gap: 'var(--gap-md)' }}>
+                            <div className="form-group">
+                                <label className="input-label">Taxa WIN (Por Contrato/Lado)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="input"
+                                    value={winFee}
+                                    onChange={e => setWinFee(e.target.value)}
+                                    placeholder="Ex: 0.20 (Vazio = Default B3)"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="input-label">Taxa WDO (Por Contrato/Lado)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="input"
+                                    value={wdoFee}
+                                    onChange={e => setWdoFee(e.target.value)}
+                                    placeholder="Ex: 1.25 (Vazio = Default B3)"
+                                />
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setWinFee('0.20'); setWdoFee('1.25'); }}>
+                                B3 Padrão (Sem Corretagem)
+                            </button>
+                            <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--amber-500)' }} onClick={() => { setWinFee('0.60'); setWdoFee('2.60'); }}>
+                                Mesa Zero7
+                            </button>
+                            <button type="button" className="btn btn-ghost btn-sm" style={{ color: 'var(--amber-500)' }} onClick={() => { setWinFee('0.50'); setWdoFee('2.50'); }}>
+                                Mesas Axia/Atom
+                            </button>
+                        </div>
+
+                        <div className="grid-2" style={{ gap: 'var(--gap-md)' }}>
+                            <div className="form-group">
+                                <label className="input-label">Corretora (Opcional)</label>
+                                <input
+                                    className="input"
+                                    value={broker}
+                                    onChange={e => setBroker(e.target.value)}
+                                    placeholder="Ex: BTG, XP, MyFundedFX"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="input-label">Nº da Conta no Profit (Opcional)</label>
+                                <input
+                                    className="input"
+                                    value={accountNumber}
+                                    onChange={e => setAccountNumber(e.target.value)}
+                                    placeholder="Para auto-deteção em importações"
+                                />
+                            </div>
+                        </div>
+
                         <div style={{ marginTop: 'var(--gap-md)' }}>
                             <button type="submit" className="btn btn-primary" disabled={saving}>
                                 {saving ? 'Salvando...' : editingId ? '✓ Guardar Alterações' : '✓ Criar Conta'}
                             </button>
                         </div>
                     </form>
-                </div>
+                </div >
             )}
 
             <div className="card">
@@ -230,8 +292,8 @@ export default function AccountsPage() {
                                         <td className="text-secondary">{acc.broker || '-'}</td>
                                         <td className="td-mono text-muted">{acc.accountNumber || '-'}</td>
                                         <td className="text-secondary">
-                                            {acc.feePerContract ? `R$ ${Number(acc.feePerContract).toFixed(2)}` : '-'}
-                                            {acc.profitSplit ? ` (${acc.profitSplit}%)` : ''}
+                                            {acc.winFee ? `WIN R$ ${Number(acc.winFee).toFixed(2)}` : 'WIN B3'} / {acc.wdoFee ? `WDO R$ ${Number(acc.wdoFee).toFixed(2)}` : 'WDO B3'}
+                                            {acc.profitSplit ? ` (${acc.profitSplit}% Split)` : ''}
                                         </td>
                                         <td>
                                             <div style={{ display: 'flex', gap: 8 }}>
@@ -246,6 +308,6 @@ export default function AccountsPage() {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }

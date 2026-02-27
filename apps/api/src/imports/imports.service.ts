@@ -28,7 +28,7 @@ export class ImportsService {
         private accountsService: AccountsService,
     ) { }
 
-    async createImport(userId: string, file: Express.Multer.File, accountId?: string) {
+    async createImport(userId: string, file: Express.Multer.File, accountId?: string, newAccountCategory?: string) {
         const imp = await this.prisma.import.create({
             data: {
                 userId,
@@ -39,7 +39,7 @@ export class ImportsService {
         });
 
         // Process synchronously (simple V1 - no queue needed)
-        this.processFile(imp.id, userId, file, accountId).catch(async (err) => {
+        this.processFile(imp.id, userId, file, accountId, newAccountCategory).catch(async (err) => {
             await this.prisma.import.update({
                 where: { id: imp.id },
                 data: { status: 'ERROR', errorMessage: err.message, finishedAt: new Date() },
@@ -54,6 +54,7 @@ export class ImportsService {
         userId: string,
         file: Express.Multer.File,
         manualAccountId?: string,
+        newAccountCategory?: string,
     ) {
         await this.prisma.import.update({
             where: { id: importId },
@@ -75,9 +76,62 @@ export class ImportsService {
         }
 
         let accountId: string | null = manualAccountId || null;
+        if (accountId === 'undefined' || accountId === 'null' || accountId === '') {
+            accountId = null;
+        }
 
         if (!accountId && detectedAccountNumber) {
-            const account = await this.accountsService.findOrCreateByAccountNumber(userId, detectedAccountNumber);
+            // Check if account exist first
+            let account = await this.prisma.account.findFirst({
+                where: { userId, accountNumber: detectedAccountNumber }
+            });
+
+            // If it doesn't exist, build based on newAccountCategory if provided
+            if (!account) {
+                let accType: $Enums.AccountType = 'PERSONAL'; // Default
+
+                if (newAccountCategory) {
+                    if (newAccountCategory === 'SIMULATOR') accType = 'SIMULATOR';
+                    else if (newAccountCategory.startsWith('PROP_')) accType = 'PROP_FIRM';
+                }
+
+                // Create Base Account
+                account = await this.prisma.account.create({
+                    data: {
+                        userId,
+                        accountNumber: detectedAccountNumber,
+                        name: `Conta ${detectedAccountNumber}`,
+                        type: accType,
+                        winFee: 0.20,
+                        wdoFee: 1.25,
+                    }
+                });
+
+                // Auto-create Prop Challenge if it's a PROP account
+                if (newAccountCategory && newAccountCategory.startsWith('PROP_')) {
+                    const propTypeMap: Record<string, any> = {
+                        'PROP_EVALUATION': 'EVALUATION',
+                        'PROP_INCUBATOR': 'INCUBATOR',
+                        'PROP_DIRECT': 'DIRECT'
+                    };
+                    const mappedType = propTypeMap[newAccountCategory] || 'EVALUATION';
+
+                    await this.prisma.propChallenge.create({
+                        data: {
+                            userId,
+                            accountId: account.id,
+                            name: `Desafio Auto (${detectedAccountNumber})`,
+                            type: mappedType,
+                            status: 'ACTIVE',
+                            profitTarget: 1000,
+                            dailyMaxLoss: 500,
+                            totalMaxDrawdown: 1000,
+                            allowedSymbols: ['WIN', 'WDO'],
+                        }
+                    });
+                }
+            }
+
             accountId = account.id;
         }
 
@@ -89,14 +143,80 @@ export class ImportsService {
             });
         }
 
+        // Fetch fees (Account level and Prop Challenge level)
+        let accountFees: { winFee?: number; wdoFee?: number } | null = null;
+        let challengeFees: { winFee?: number; wdoFee?: number } | null = null;
+
+        if (accountId) {
+            // 1. Get Account Default Fees
+            const account = await this.prisma.account.findUnique({
+                where: { id: accountId }
+            });
+            if (account) {
+                accountFees = {
+                    winFee: account.winFee !== null ? account.winFee : undefined,
+                    wdoFee: account.wdoFee !== null ? account.wdoFee : undefined,
+                };
+            }
+
+            // 2. Get Prop Challenge Fees (Overrides Account if exists)
+            const challenge = await this.prisma.propChallenge.findFirst({
+                where: { accountId, userId },
+                orderBy: { createdAt: 'desc' },
+            });
+            if (challenge) {
+                challengeFees = {
+                    winFee: challenge.winFee !== null ? challenge.winFee : undefined,
+                    wdoFee: challenge.wdoFee !== null ? challenge.wdoFee : undefined,
+                };
+            }
+        }
+
         let imported = 0;
         let skipped = 0;
 
+        // Optional: Sort chronological to ensure deterministic sequence counting
+        rawTrades.sort((a, b) => a.tradeDate.getTime() - b.tradeDate.getTime());
+
+        // Track how many times an identical base trade appears in this batch
+        const sessionOccurrences = new Map<string, number>();
+
         for (const raw of rawTrades) {
-            const hash = this.makeHash(userId, raw);
+            let fees = raw.fees || 0;
+            let pnl = raw.pnl;
+
+            // Fee Hierarchy Application
+            // Priority 1: PropChallenge Fees (Specific rule constraints)
+            // Priority 2: Account Fees (User configured baseline)
+            // Priority 3: CSV `raw.fees` (Fallback)
+
+            if (challengeFees || accountFees) {
+                if (raw.symbol === 'WIN') {
+                    const activeWinFee = challengeFees?.winFee !== undefined ? challengeFees.winFee : accountFees?.winFee;
+                    if (activeWinFee !== undefined) {
+                        fees = raw.quantity * activeWinFee * 2;
+                        pnl = raw.pnl - fees;
+                    }
+                } else if (raw.symbol === 'WDO') {
+                    const activeWdoFee = challengeFees?.wdoFee !== undefined ? challengeFees.wdoFee : accountFees?.wdoFee;
+                    if (activeWdoFee !== undefined) {
+                        fees = raw.quantity * activeWdoFee * 2;
+                        pnl = raw.pnl - fees;
+                    }
+                }
+            }
+
+            const baseHash = this.makeHash(userId, raw, pnl);
+
+            // Increment the counter for this specific baseHash payload
+            const count = (sessionOccurrences.get(baseHash) || 0) + 1;
+            sessionOccurrences.set(baseHash, count);
+
+            // The final hash appends the sequential index in that specific millisecond payload
+            const finalHash = `${baseHash}-${count}`;
 
             const exists = await this.prisma.trade.findUnique({
-                where: { userId_externalHash: { userId, externalHash: hash } },
+                where: { userId_externalHash: { userId, externalHash: finalHash } },
             });
 
             if (exists) {
@@ -112,9 +232,9 @@ export class ImportsService {
                     tradeDate: raw.tradeDate,
                     symbol: raw.symbol,
                     quantity: raw.quantity,
-                    pnl: raw.pnl,
-                    fees: raw.fees,
-                    externalHash: hash,
+                    pnl: pnl,
+                    fees: fees,
+                    externalHash: finalHash,
                 },
             });
 
@@ -208,7 +328,7 @@ export class ImportsService {
         const match = String(dateRaw).match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}):(\d{2}))?/);
         if (match) {
             const [_, day, month, year, hh, mm, ss] = match;
-            tradeDate = new Date(`${year}-${month}-${day}T${hh || '00'}:${mm || '00'}:${ss || '00'}Z`);
+            tradeDate = new Date(`${year}-${month}-${day}T${hh || '00'}:${mm || '00'}:${ss || '00'}-03:00`);
         } else {
             tradeDate = new Date(dateRaw);
         }
@@ -218,7 +338,7 @@ export class ImportsService {
         }
 
         const symbol = this.normalizeSymbol(symbolRaw);
-        const quantity = Math.abs(parseFloat(String(quantityRaw).replace(',', '.')) || 1);
+        const quantity = Math.abs(parseFloat(String(quantityRaw).replace(/\./g, '').replace(',', '.')) || 1);
         const pnl = parseFloat(
             String(pnlRaw).replace(/R\$\s*/g, '').replace(/\./g, '').replace(',', '.'),
         );
@@ -236,8 +356,9 @@ export class ImportsService {
         return 'OTHER';
     }
 
-    private makeHash(userId: string, t: RawTrade): string {
-        const str = `${userId}-${t.tradeDate.toISOString()}-${t.symbol}-${t.quantity}-${t.pnl}`;
+    private makeHash(userId: string, t: RawTrade, finalPnl?: number): string {
+        const pnlStr = finalPnl !== undefined ? finalPnl.toFixed(2) : t.pnl.toFixed(2);
+        const str = `${userId}-${t.tradeDate.toISOString()}-${t.symbol}-${t.quantity}-${pnlStr}`;
         return crypto.createHash('sha256').update(str).digest('hex');
     }
 

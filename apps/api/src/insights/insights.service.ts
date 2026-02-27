@@ -19,11 +19,14 @@ export class InsightsService {
     }
 
     async getInsights(userId: string, q: DateRangeQuery) {
+        let { accountId } = q;
+        if (accountId === 'all' || accountId === '' || accountId === 'undefined') accountId = undefined;
+
         const range = this.dateRange(q);
         const rawTrades = await this.prisma.trade.findMany({
             where: {
                 userId,
-                accountId: q.accountId || undefined,
+                accountId: accountId || undefined,
                 tradeDate: { gte: range.gte, lte: range.lte },
             },
             select: { tradeDate: true, symbol: true, pnl: true },

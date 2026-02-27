@@ -2,6 +2,7 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import { journal as journalApi } from '@/lib/api';
+import { useAccount } from '@/lib/AccountContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -36,8 +37,10 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 export default function JournalPage() {
+    const { accounts } = useAccount();
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const [selectedAccount, setSelectedAccount] = useState<string>('');
     const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState('');
@@ -53,7 +56,7 @@ export default function JournalPage() {
     }, []);
 
     useEffect(() => {
-        journalApi.getByDate(selectedDate).then((data: any) => {
+        journalApi.getByDate(selectedDate, selectedAccount || undefined).then((data: any) => {
             setDayDetail(data);
             if (data.entry) {
                 setEmotion(data.entry.emotion);
@@ -67,7 +70,7 @@ export default function JournalPage() {
                 setNotes('');
             }
         });
-    }, [selectedDate]);
+    }, [selectedDate, selectedAccount]);
 
     function toggleTrigger(t: string) {
         setTriggers((prev) =>
@@ -84,7 +87,7 @@ export default function JournalPage() {
             const updated: any = await journalApi.list();
             setEntries(updated);
             setMsg('✓ Diário salvo!');
-            const detail: any = await journalApi.getByDate(selectedDate);
+            const detail: any = await journalApi.getByDate(selectedDate, selectedAccount || undefined);
             setDayDetail(detail);
         } catch (err: unknown) {
             setMsg(`✗ ${err instanceof Error ? err.message : 'Erro ao salvar'}`);
@@ -155,13 +158,26 @@ export default function JournalPage() {
                                     {format(new Date(selectedDate + 'T12:00:00'), "EEEE, dd 'de' MMMM", { locale: ptBR })}
                                 </div>
                             </div>
-                            <input
-                                type="date"
-                                className="input"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                                style={{ width: 'auto' }}
-                            />
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <select
+                                    className="input"
+                                    style={{ width: 'auto' }}
+                                    value={selectedAccount}
+                                    onChange={(e) => setSelectedAccount(e.target.value)}
+                                >
+                                    <option value="">Todas as Contas</option>
+                                    {accounts.map(a => (
+                                        <option key={a.id} value={a.id}>{a.name}</option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="date"
+                                    className="input"
+                                    value={selectedDate}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                    style={{ width: 'auto' }}
+                                />
+                            </div>
                         </div>
 
                         {/* Trading Context */}

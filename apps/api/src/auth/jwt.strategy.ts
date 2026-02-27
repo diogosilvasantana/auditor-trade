@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface JwtPayload {
     sub: string;
@@ -10,7 +11,7 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-    constructor() {
+    constructor(private prisma: PrismaService) {
         super({
             jwtFromRequest: ExtractJwt.fromExtractors([
                 (request: Request) => {
@@ -23,7 +24,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         });
     }
 
-    validate(payload: JwtPayload) {
-        return { id: payload.sub, email: payload.email };
+    async validate(payload: JwtPayload) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: payload.sub },
+        });
+
+        if (!user) {
+            throw new UnauthorizedException('Sessão inválida. Por favor, faça login novamente.');
+        }
+
+        return { id: user.id, email: user.email };
     }
 }

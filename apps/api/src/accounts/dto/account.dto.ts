@@ -19,7 +19,12 @@ export class CreateAccountDto {
     @IsOptional()
     @IsNumber()
     @Min(0)
-    feePerContract?: number;
+    winFee?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    wdoFee?: number;
 
     @IsOptional()
     @IsNumber()
@@ -52,7 +57,12 @@ export class UpdateAccountDto {
     @IsOptional()
     @IsNumber()
     @Min(0)
-    feePerContract?: number;
+    winFee?: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    wdoFee?: number;
 
     @IsOptional()
     @IsNumber()

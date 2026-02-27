@@ -30,9 +30,10 @@ export class ImportsController {
         @UploadedFile() file: Express.Multer.File,
         @Request() req: any,
         @Body('accountId') accountId?: string,
+        @Body('newAccountCategory') newAccountCategory?: string,
     ) {
         if (!file) throw new BadRequestException('No file uploaded');
-        return this.imports.createImport(req.user.id, file, accountId);
+        return this.imports.createImport(req.user.id, file, accountId, newAccountCategory);
     }
 
     @Get()

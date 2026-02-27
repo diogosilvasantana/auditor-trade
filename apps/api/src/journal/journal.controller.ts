@@ -28,7 +28,7 @@ export class JournalController {
     }
 
     @Get(':date')
-    getByDate(@Param('date') date: string, @Request() req: any) {
-        return this.journal.getByDate(req.user.id, date);
+    getByDate(@Param('date') date: string, @Request() req: any, @Query('accountId') accountId?: string) {
+        return this.journal.getByDate(req.user.id, date, accountId);
     }
 }

@@ -38,6 +38,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function ImportsPage() {
     const { accounts } = useAccount();
     const [selectedAccountForImport, setSelectedAccountForImport] = useState<string>('');
+    const [newAccountCategory, setNewAccountCategory] = useState<string>('PERSONAL');
     const [importList, setImportList] = useState<Import[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [loaded, setLoaded] = useState(false);
@@ -64,7 +65,7 @@ export default function ImportsPage() {
         setUploading(true);
         setUploadMsg('');
         try {
-            await importsApi.upload(file, selectedAccountForImport);
+            await importsApi.upload(file, selectedAccountForImport, newAccountCategory);
             setUploadMsg('✓ Upload iniciado! Aguarde o processamento.');
             await loadImports();
         } catch (err: unknown) {
@@ -125,6 +126,28 @@ export default function ImportsPage() {
                         Selecione uma conta para forçar a vinculação de todos os trades deste ficheiro.
                     </p>
                 </div>
+
+                {selectedAccountForImport === '' && (
+                    <div className="form-group mb-0" style={{ marginTop: 16 }}>
+                        <label className="input-label">Tipo da Nova Conta (se for gerada)</label>
+                        <select
+                            className="input"
+                            value={newAccountCategory}
+                            onChange={(e) => setNewAccountCategory(e.target.value)}
+                            style={{ maxWidth: 400 }}
+                        >
+                            <option value="PERSONAL">Conta Pessoal</option>
+                            <option value="SIMULATOR">Simulador</option>
+                            <option value="PROP_EVALUATION">Mesa Proprietária - Avaliação</option>
+                            <option value="PROP_INCUBATOR">Mesa Proprietária - Incubadora</option>
+                            <option value="PROP_DIRECT">Mesa Proprietária - Real (Teste Direto)</option>
+                        </select>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                            Ao importar trades de uma conta nova, o sistema criará a conta automaticamente com esta categoria.
+                            Se escolher "Mesa Proprietária", ativaremos um desafio modelo para você configurar os limites depois.
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* Upload Zone */}

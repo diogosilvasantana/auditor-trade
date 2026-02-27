@@ -53,10 +53,11 @@ export const accounts = {
 
 // Imports
 export const imports = {
-    upload: (file: File, accountId?: string) => {
+    upload: (file: File, accountId?: string, newAccountCategory?: string) => {
         const form = new FormData();
         form.append('file', file);
         if (accountId) form.append('accountId', accountId);
+        if (newAccountCategory) form.append('newAccountCategory', newAccountCategory);
         return request('/imports', {
             method: 'POST',
             body: form,
@@ -171,7 +172,11 @@ export const journal = {
         if (accountId) p.set('accountId', accountId);
         return request(`/journal?${p}`);
     },
-    getByDate: (date: string) => request(`/journal/${date}`),
+    getByDate: (date: string, accountId?: string) => {
+        const p = new URLSearchParams();
+        if (accountId) p.set('accountId', accountId);
+        return request(`/journal/${date}?${p}`);
+    },
     create: (data: unknown) =>
         request('/journal', { method: 'POST', body: JSON.stringify(data) }),
 };

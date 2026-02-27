@@ -19,13 +19,14 @@ interface AccountContextType {
     setSelectedAccountId: (id: string) => void;
     isLoading: boolean;
     refreshAccounts: () => Promise<void>;
+    fetchAccounts: () => Promise<void>;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
 export function AccountProvider({ children }: { children: ReactNode }) {
     const [accounts, setAccounts] = useState<Account[]>([]);
-    const [selectedAccountId, setSelectedAccountIdState] = useState<string>('all');
+    const [selectedAccountId, setSelectedAccountIdState] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
 
     const refreshAccounts = async () => {
@@ -39,11 +40,14 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    // Initialize from localStorage safely to avoid Hydration Mismatch
     useEffect(() => {
         refreshAccounts();
         const savedId = localStorage.getItem('selectedAccountId');
         if (savedId) {
             setSelectedAccountIdState(savedId);
+        } else {
+            setSelectedAccountIdState('all');
         }
     }, []);
 
@@ -63,6 +67,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
                 setSelectedAccountId,
                 isLoading,
                 refreshAccounts,
+                fetchAccounts: refreshAccounts,
             }}
         >
             {children}

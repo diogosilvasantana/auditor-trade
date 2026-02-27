@@ -18,23 +18,26 @@ export class AnalyticsService {
     }
 
     async getOverview(userId: string, q: DateRangeQuery) {
+        let { accountId } = q;
+        if (accountId === 'all' || accountId === '' || accountId === 'undefined') accountId = undefined;
+
         const range = this.dateRange(q);
         console.log(`[Analytics] getOverview userId=${userId} range=${JSON.stringify(range)}`);
 
         const stats = await this.prisma.dailyStat.findMany({
             where: {
                 userId,
-                accountId: q.accountId || undefined,
+                accountId: accountId || undefined,
                 date: { gte: range.gte, lte: range.lte },
             },
             orderBy: { date: 'asc' },
         });
         console.log(`[Analytics] getOverview stats.length=${stats.length}`);
 
-        const totalPnl = stats.reduce((s, d) => s + Number(d.totalPnl), 0);
-        const totalTrades = stats.reduce((s, d) => s + d.totalTrades, 0);
-        const totalWins = stats.reduce((s, d) => s + d.wins, 0);
-        const totalLosses = stats.reduce((s, d) => s + d.losses, 0);
+        const totalPnl = stats.reduce((s: number, d: any) => s + Number(d.totalPnl), 0);
+        const totalTrades = stats.reduce((s: number, d: any) => s + d.totalTrades, 0);
+        const totalWins = stats.reduce((s: number, d: any) => s + d.wins, 0);
+        const totalLosses = stats.reduce((s: number, d: any) => s + d.losses, 0);
         const winRate =
             totalWins + totalLosses > 0
                 ? ((totalWins / (totalWins + totalLosses)) * 100).toFixed(1)
@@ -49,7 +52,7 @@ export class AnalyticsService {
                 winRate: `${winRate}%`,
                 tradingDays: stats.length,
             },
-            daily: stats.map((d) => ({
+            daily: stats.map((d: any) => ({
                 date: d.date,
                 pnl: Number(d.totalPnl),
                 trades: d.totalTrades,
@@ -60,13 +63,16 @@ export class AnalyticsService {
     }
 
     async getBySymbol(userId: string, q: DateRangeQuery) {
+        let { accountId } = q;
+        if (accountId === 'all' || accountId === '' || accountId === 'undefined') accountId = undefined;
+
         const range = this.dateRange(q);
         console.log(`[Analytics] getBySymbol userId=${userId} range=${JSON.stringify(range)}`);
 
         const trades = await this.prisma.trade.findMany({
             where: {
                 userId,
-                accountId: q.accountId || undefined,
+                accountId: accountId || undefined,
                 tradeDate: { gte: range.gte, lte: range.lte },
             },
             select: { symbol: true, pnl: true, tradeDate: true },
@@ -115,12 +121,15 @@ export class AnalyticsService {
     }
 
     async getHeatmap(userId: string, q: DateRangeQuery & { symbol?: string; bucket?: number }) {
+        let { accountId } = q;
+        if (accountId === 'all' || accountId === '' || accountId === 'undefined') accountId = undefined;
+
         const range = this.dateRange(q);
         const bucketMin = q.bucket ? parseInt(String(q.bucket)) : 30;
 
         const where: any = {
             userId,
-            accountId: q.accountId || undefined,
+            accountId: accountId || undefined,
             tradeDate: { gte: range.gte, lte: range.lte },
         };
         if (q.symbol) where.symbol = q.symbol;
@@ -163,12 +172,15 @@ export class AnalyticsService {
     }
 
     async getByWeekday(userId: string, q: DateRangeQuery) {
+        let { accountId } = q;
+        if (accountId === 'all' || accountId === '' || accountId === 'undefined') accountId = undefined;
+
         const range = this.dateRange(q);
         console.log(`[Analytics] getByWeekday userId=${userId} range=${JSON.stringify(range)}`);
         const trades = await this.prisma.trade.findMany({
             where: {
                 userId,
-                accountId: q.accountId || undefined,
+                accountId: accountId || undefined,
                 tradeDate: { gte: range.gte, lte: range.lte },
             },
             select: { tradeDate: true, pnl: true },
@@ -196,18 +208,21 @@ export class AnalyticsService {
     }
 
     async getTrades(userId: string, q: DateRangeQuery) {
+        let { accountId } = q;
+        if (accountId === 'all' || accountId === '' || accountId === 'undefined') accountId = undefined;
+
         const range = this.dateRange(q);
         console.log(`[Analytics] getTrades userId=${userId} range=${JSON.stringify(range)}`);
         const trades = await this.prisma.trade.findMany({
             where: {
                 userId,
-                accountId: q.accountId || undefined,
+                accountId: accountId || undefined,
                 tradeDate: { gte: range.gte, lte: range.lte },
             },
             orderBy: { tradeDate: 'desc' },
         });
 
-        return trades.map((t) => ({
+        return trades.map((t: any) => ({
             id: t.id,
             tradeDate: t.tradeDate,
             symbol: t.symbol,

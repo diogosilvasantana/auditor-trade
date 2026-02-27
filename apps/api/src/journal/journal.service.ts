@@ -38,7 +38,7 @@ export class JournalService {
         });
     }
 
-    async getByDate(userId: string, date: string) {
+    async getByDate(userId: string, date: string, accountId?: string) {
         const dateObj = new Date(date);
 
         const entry = await this.prisma.journalEntry.findUnique({
@@ -47,7 +47,11 @@ export class JournalService {
 
         // Get trading context for this date (aggregate all accounts)
         const stats = await this.prisma.dailyStat.findMany({
-            where: { userId, date: dateObj },
+            where: {
+                userId,
+                date: dateObj,
+                ...(accountId ? { accountId } : {})
+            },
         });
 
         const context = stats.length > 0 ? stats.reduce((acc, curr) => ({

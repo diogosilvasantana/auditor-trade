@@ -11,6 +11,8 @@ export class PropService {
             data: {
                 userId,
                 name: dto.name,
+                type: dto.type,
+                status: dto.status,
                 profitTarget: dto.profitTarget,
                 dailyMaxLoss: dto.dailyMaxLoss,
                 totalMaxDrawdown: dto.totalMaxDrawdown,
@@ -20,6 +22,8 @@ export class PropService {
                 startDate: dto.startDate ? new Date(dto.startDate) : null,
                 endDate: dto.endDate ? new Date(dto.endDate) : null,
                 accountId: dto.accountId,
+                winFee: dto.winFee,
+                wdoFee: dto.wdoFee,
             },
         });
     }
@@ -42,6 +46,8 @@ export class PropService {
             where: { id },
             data: {
                 ...dto,
+                type: dto.type,
+                status: dto.status,
                 startDate: dto.startDate ? new Date(dto.startDate) : undefined,
                 endDate: dto.endDate ? new Date(dto.endDate) : undefined,
             },
@@ -93,7 +99,6 @@ export class PropService {
         if (!challenge) throw new NotFoundException('Challenge not found');
 
         const account = challenge.account;
-        const feePerContract = account?.feePerContract ? Number(account.feePerContract) : 0;
         const profitSplit = account?.profitSplit ? Number(account.profitSplit) / 100 : 1;
 
         const gte = q.start
@@ -117,11 +122,9 @@ export class PropService {
         });
 
         const stats = trades.reduce((acc: { totalGrossPnl: number; totalNetPnl: number; totalTrades: number; wins: number; losses: number }, t: any) => {
-            const pnl = Number(t.pnl);
-            const qty = Number(t.quantity);
-            const netPnl = pnl - (qty * feePerContract);
+            const netPnl = Number(t.pnl);
 
-            acc.totalGrossPnl += pnl;
+            acc.totalGrossPnl += netPnl; // Since we don't save DB gross PnL anymore, map Gross to Net
             acc.totalNetPnl += netPnl;
             acc.totalTrades++;
             if (netPnl > 0) acc.wins++;
@@ -139,25 +142,13 @@ export class PropService {
 
         const safeDiv = (n: number, d: number) => (d === 0 ? 0 : n / d);
 
-        // Max Drawdown calculation (based on balance peaks)
-        let maxDrawdown = 0;
-        let peak = 0;
-        let currentBalance = 0;
+        // Total Loss Limit calculation
+        const totalLossUsed = totalPnlBeforeSplit < 0 ? Math.abs(totalPnlBeforeSplit) : 0;
+        const lossRemaining = maxDD + totalPnlBeforeSplit; // If positive, adds to margin. If negative, subtracts.
+        const lossPercent = totalPnlBeforeSplit < 0 ? Math.min((totalLossUsed / maxDD) * 100, 100) : 0;
 
-        // Sort trades by date for drawdown calculation
-        const sortedTrades = [...trades].sort((a: any, b: any) =>
-            new Date(a.tradeDate).getTime() - new Date(b.tradeDate).getTime()
-        );
-
-        for (const t of sortedTrades) {
-            const pnl = Number(t.pnl);
-            const qty = Number(t.quantity);
-            const netPnl = pnl - (qty * feePerContract);
-            currentBalance += netPnl;
-            if (currentBalance > peak) peak = currentBalance;
-            const drawdown = peak - currentBalance;
-            if (drawdown > maxDrawdown) maxDrawdown = drawdown;
-        }
+        const isTargetReached = totalPnlBeforeSplit >= target;
+        const isLossLimitReached = totalLossUsed >= maxDD;
 
         const safeFixed = (val: number, digits: number) => {
             if (isNaN(val) || !isFinite(val)) return (0).toFixed(digits);
@@ -172,9 +163,11 @@ export class PropService {
                 totalTrades: stats.totalTrades || 0,
                 distanceToTarget: safeFixed(target - totalPnlBeforeSplit, 2),
                 progressPercent: safeFixed(safeDiv(totalPnlBeforeSplit, target) * 100, 1),
-                maxDrawdownUsed: safeFixed(maxDrawdown, 2),
-                drawdownPercent: safeFixed(safeDiv(maxDrawdown, maxDD) * 100, 1),
-                drawdownRemaining: safeFixed(maxDD - maxDrawdown, 2),
+                lossUsed: safeFixed(totalLossUsed, 2),
+                lossPercent: safeFixed(lossPercent, 1),
+                lossRemaining: safeFixed(lossRemaining, 2),
+                isTargetReached,
+                isLossLimitReached,
                 tradingDays: new Set(trades.map((t: any) => t.tradeDate?.toISOString().split('T')[0]).filter(Boolean))
                     .size,
             },

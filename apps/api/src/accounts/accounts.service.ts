@@ -10,6 +10,8 @@ export class AccountsService {
         return this.prisma.account.create({
             data: {
                 userId,
+                winFee: dto.winFee ?? 0.20,
+                wdoFee: dto.wdoFee ?? 1.25,
                 ...dto,
             },
         });

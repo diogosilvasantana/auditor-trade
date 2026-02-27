@@ -35,8 +35,9 @@ model Account {
   broker         String?
   accountNumber  String?         @map("account_number")
   isActive       Boolean         @default(true) @map("is_active")
-  feePerContract Decimal?        @map("fee_per_contract") @db.Decimal(10, 2)
   profitSplit    Decimal?        @map("profit_split") @db.Decimal(5, 2)
+  winFee         Float?          @map("win_fee")
+  wdoFee         Float?          @map("wdo_fee")
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -63,7 +64,7 @@ model Import {
   skippedRows      Int          @default(0) @map("skipped_rows")
   createdAt        DateTime     @default(now()) @map("created_at")
   accountId        String?      @map("account_id")
-  account          Account?     @relation(fields: [accountId], references: [id])
+  account          Account?     @relation(fields: [accountId], references: [id], onDelete: Cascade)
   user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   trades           Trade[]
 
@@ -85,7 +86,7 @@ model Trade {
   externalHash String     @map("external_hash")
   createdAt    DateTime   @default(now()) @map("created_at")
   accountId    String?    @map("account_id")
-  account      Account?   @relation(fields: [accountId], references: [id])
+  account      Account?   @relation(fields: [accountId], references: [id], onDelete: Cascade)
   import       Import     @relation(fields: [importId], references: [id], onDelete: Cascade)
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -106,7 +107,7 @@ model DailyStat {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   accountId   String?  @map("account_id")
-  account     Account? @relation(fields: [accountId], references: [id])
+  account     Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, accountId, date])
@@ -145,28 +146,44 @@ model TradePlan {
   createdAt                   DateTime @default(now()) @map("created_at")
   updatedAt                   DateTime @updatedAt @map("updated_at")
   accountId                   String?  @map("account_id")
-  account                     Account? @relation(fields: [accountId], references: [id])
+  account                     Account? @relation(fields: [accountId], references: [id], onDelete: Cascade)
   user                        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("trade_plans")
 }
 
+enum PropChallengeType {
+  EVALUATION
+  INCUBATOR
+  DIRECT
+}
+
+enum PropChallengeStatus {
+  ACTIVE
+  APPROVED
+  FAILED
+}
+
 model PropChallenge {
-  id                   String    @id @default(uuid())
-  userId               String    @map("user_id")
+  id                   String              @id @default(uuid())
+  userId               String              @map("user_id")
   name                 String
-  profitTarget         Decimal   @map("profit_target")
-  dailyMaxLoss         Decimal   @map("daily_max_loss")
-  totalMaxDrawdown     Decimal   @map("total_max_drawdown")
-  allowedSymbols       Json      @map("allowed_symbols")
-  maxContractsBySymbol Json?     @map("max_contracts_by_symbol")
-  rulesText            String?   @map("rules_text")
-  startDate            DateTime? @map("start_date")
-  endDate              DateTime? @map("end_date")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  accountId            String?   @map("account_id")
-  account              Account?  @relation(fields: [accountId], references: [id])
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                 PropChallengeType   @default(EVALUATION) @map("type")
+  status               PropChallengeStatus @default(ACTIVE) @map("status")
+  profitTarget         Decimal             @map("profit_target")
+  dailyMaxLoss         Decimal             @map("daily_max_loss")
+  totalMaxDrawdown     Decimal             @map("total_max_drawdown")
+  allowedSymbols       Json                @map("allowed_symbols")
+  maxContractsBySymbol Json?               @map("max_contracts_by_symbol")
+  rulesText            String?             @map("rules_text")
+  startDate            DateTime?           @map("start_date")
+  endDate              DateTime?           @map("end_date")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  accountId            String?             @map("account_id")
+  account              Account?            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  winFee               Float?              @map("win_fee")
+  wdoFee               Float?              @map("wdo_fee")
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("prop_challenges")
 }
