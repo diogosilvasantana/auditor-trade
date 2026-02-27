@@ -183,6 +183,7 @@ export class ImportsService {
 
         for (const raw of rawTrades) {
             let fees = raw.fees || 0;
+            const grossPnl = raw.pnl; // Always save the raw CSV value
             let pnl = raw.pnl;
 
             // Fee Hierarchy Application
@@ -195,18 +196,19 @@ export class ImportsService {
                     const activeWinFee = challengeFees?.winFee !== undefined ? challengeFees.winFee : accountFees?.winFee;
                     if (activeWinFee !== undefined) {
                         fees = raw.quantity * activeWinFee * 2;
-                        pnl = raw.pnl - fees;
+                        pnl = grossPnl - fees;
                     }
                 } else if (raw.symbol === 'WDO') {
                     const activeWdoFee = challengeFees?.wdoFee !== undefined ? challengeFees.wdoFee : accountFees?.wdoFee;
                     if (activeWdoFee !== undefined) {
                         fees = raw.quantity * activeWdoFee * 2;
-                        pnl = raw.pnl - fees;
+                        pnl = grossPnl - fees;
                     }
                 }
             }
 
-            const baseHash = this.makeHash(userId, raw, pnl);
+            // Hash uses GROSS pnl (from CSV), so it remains stable even if account fees change later
+            const baseHash = this.makeHash(userId, raw, grossPnl);
 
             // Increment the counter for this specific baseHash payload
             const count = (sessionOccurrences.get(baseHash) || 0) + 1;
@@ -232,7 +234,8 @@ export class ImportsService {
                     tradeDate: raw.tradeDate,
                     symbol: raw.symbol,
                     quantity: raw.quantity,
-                    pnl: pnl,
+                    grossPnl: grossPnl,  // Raw CSV value, never changes
+                    pnl: pnl,            // Net after fees (cached for dashboard)
                     fees: fees,
                     externalHash: finalHash,
                 },

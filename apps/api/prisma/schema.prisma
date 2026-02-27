@@ -78,6 +78,7 @@ model Trade {
   tradeDate    DateTime   @map("trade_date")
   symbol       Symbol
   quantity     Decimal
+  grossPnl     Decimal    @map("gross_pnl")
   pnl          Decimal
   fees         Decimal?
   side         TradeSide?
